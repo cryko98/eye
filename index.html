@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>God's Eye View — $EYE on Solana</title>
+  <meta name="description" content="God's Eye View ($EYE): a live spy-satellite globe on Solana. Real aircraft, satellites, earthquakes, weather radar and 6,500+ public cameras. No bag left behind." />
+  <meta name="theme-color" content="#070b0e" />
+  <link rel="icon" type="image/svg+xml" href="/logo.svg" />
+  <meta property="og:title" content="God's Eye View — $EYE" />
+  <meta property="og:description" content="A live spy-satellite globe on Solana. Real aircraft, satellites, cameras, imagery. $EYE sees it all." />
+  <meta property="og:image" content="/og.png" />
+  <meta property="og:type" content="website" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cesium.com/downloads/cesiumjs/releases/1.120/Build/Cesium/Widgets/widgets.css" />
+  <link rel="stylesheet" href="/style.css" />
+  <script>window.CESIUM_BASE_URL = "https://cesium.com/downloads/cesiumjs/releases/1.120/Build/Cesium/";</script>
+</head>
+<body>
+  <!-- ====== GLOBE ====== -->
+  <div id="cesium" aria-label="Live 3D globe"></div>
+  <div id="globe-loading" class="loading"><span class="loading-ring"></span>ACQUIRING SATELLITE LINK</div>
+  <div id="globe-fallback" class="fallback" hidden><p>WEBGL UNAVAILABLE</p></div>
+  <div class="scanlines" aria-hidden="true"></div>
+
+  <!-- ====== TOP BAR ====== -->
+  <header class="topbar">
+    <a class="brand" href="/">
+      <img src="/logo.svg" alt="" class="brand-logo" />
+      <span class="brand-text">GOD'S EYE VIEW <span class="brand-ticker">$EYE</span></span>
+    </a>
+    <button type="button" class="ca-pill" id="ca-pill" title="Copy contract address">
+      <span class="ca-pill-label">CA</span>
+      <code id="ca-text">xxxxxxxxxxxxxxxxxxxxxxxxxxxxx</code>
+      <b id="ca-pill-copy">COPY</b>
+    </button>
+    <nav class="dock" id="dock">
+      <button type="button" data-panel="intel">Intel</button>
+      <button type="button" data-panel="tokenomics">Tokenomics</button>
+      <button type="button" data-panel="buy">How to buy</button>
+      <button type="button" data-panel="roadmap">Roadmap</button>
+      <button type="button" data-panel="cameras">Cameras</button>
+      <button type="button" data-panel="flights">Contacts</button>
+      <button type="button" data-panel="community">Socials</button>
+    </nav>
+    <a class="btn btn-primary btn-sm topbar-buy" data-link="buy" href="#" target="_blank" rel="noopener">BUY $EYE</a>
+    <button type="button" class="dock-toggle" id="dock-toggle" aria-expanded="false" aria-controls="dock">MENU</button>
+  </header>
+
+  <!-- ====== HUD ====== -->
+  <div class="hud" aria-hidden="true">
+    <span class="corner tl"></span><span class="corner tr"></span>
+    <span class="corner bl"></span><span class="corner br"></span>
+    <div class="hud-left">
+      <div><span class="hud-live"><i></i>LIVE</span> <b id="hud-clock">--:--:--Z</b></div>
+      <div>SAT&nbsp;&nbsp; <b>EYE-01</b></div>
+      <div>MODE&nbsp; <b id="hud-mode">ORBIT</b></div>
+      <div>ALT&nbsp;&nbsp; <b id="hud-alt">—</b></div>
+      <div>LAT&nbsp;&nbsp; <b id="hud-lat">—</b></div>
+      <div>LON&nbsp;&nbsp; <b id="hud-lon">—</b></div>
+    </div>
+    <div class="hud-right">
+      <div>AIRCRAFT&nbsp;&nbsp; <b id="hud-planes">—</b></div>
+      <div>CAMERAS&nbsp;&nbsp;&nbsp; <b id="hud-cams">—</b></div>
+      <div>SATELLITES <b id="hud-sats">—</b></div>
+      <div>QUAKES 24H <b id="hud-quakes">—</b></div>
+      <div>FEED&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <b id="hud-feed">INIT</b></div>
+      <div>SENSOR&nbsp;&nbsp;&nbsp;&nbsp; <b id="hud-sensor">EO</b></div>
+    </div>
+    <div class="hud-log" id="hud-log">&gt; INITIALISING ORBITAL LINK</div>
+  </div>
+
+  <!-- ====== MISSION CARD ====== -->
+  <aside class="mission" id="mission">
+    <p class="eyebrow">SOLANA · FAIR LAUNCH · NO PLACE LEFT BEHIND</p>
+    <h1>GOD'S EYE VIEW</h1>
+    <p class="lede">A live spy-satellite globe. Real aircraft, satellites, earthquakes, weather and 6,500+ public cameras. <strong>$EYE</strong> sees it all. Especially your bag.</p>
+    <div class="ca-box">
+      <span class="ca-label">CA</span>
+      <code id="ca-text-2">xxxxxxxxxxxxxxxxxxxxxxxxxxxxx</code>
+      <button id="ca-copy" class="btn-copy" type="button" aria-label="Copy contract address">COPY</button>
+    </div>
+    <div class="cta-row">
+      <a class="btn btn-primary btn-sm" data-link="buy" href="#" target="_blank" rel="noopener">BUY $EYE</a>
+      <a class="btn btn-ghost btn-sm" data-link="chart" href="#" target="_blank" rel="noopener">CHART</a>
+      <a class="btn btn-ghost btn-sm" data-link="x" href="#" target="_blank" rel="noopener">X</a>
+      <a class="btn btn-ghost btn-sm" data-link="telegram" href="#" target="_blank" rel="noopener">TELEGRAM</a>
+    </div>
+    <button type="button" class="mission-toggle" id="mission-toggle" aria-label="Collapse">HIDE</button>
+  </aside>
+
+  <!-- ====== GLOBE CONTROLS ====== -->
+  <div class="controls" id="controls">
+    <form class="ctl-group ctl-search" id="search-form">
+      <input id="search" type="search" placeholder="lat, lon  ·  city  ·  place" autocomplete="off" spellcheck="false" />
+      <button type="submit">GO</button>
+    </form>
+    <div class="ctl-group">
+      <span class="ctl-label">VIEW</span>
+      <button type="button" data-view="3d" class="on">3D</button>
+      <button type="button" data-view="top">TOP</button>
+      <button type="button" data-view="2d">2D MAP</button>
+    </div>
+    <div class="ctl-group">
+      <span class="ctl-label">SENSOR</span>
+      <button type="button" data-sensor="eo" class="on">EO</button>
+      <button type="button" data-sensor="flir">FLIR</button>
+      <button type="button" data-sensor="nvg">NVG</button>
+      <button type="button" data-sensor="crt">CRT</button>
+    </div>
+    <div class="ctl-group ctl-layers">
+      <span class="ctl-label">LAYERS</span>
+      <button type="button" data-layer="planes" class="on">AIRCRAFT</button>
+      <button type="button" data-layer="cams" class="on">CAMERAS</button>
+      <button type="button" data-layer="sats" class="on">SATELLITES</button>
+      <button type="button" data-layer="quakes" class="on">QUAKES</button>
+      <button type="button" data-layer="radar">RADAR</button>
+      <button type="button" data-layer="lights" class="on">NIGHT LIGHTS</button>
+      <button type="button" data-layer="cables">CABLES</button>
+    </div>
+    <div class="ctl-group">
+      <button type="button" id="btn-track">TRACK RANDOM</button>
+      <button type="button" id="btn-cam">RANDOM CAM</button>
+      <button type="button" id="btn-iss">ISS</button>
+      <button type="button" id="btn-share">SHARE</button>
+      <button type="button" id="btn-reset">RESET</button>
+    </div>
+  </div>
+
+  <div id="cesium-credits" class="credits"></div>
+
+  <!-- ====== TARGET WINDOW ====== -->
+  <aside class="panel panel-target" id="panel-target" hidden>
+    <header class="panel-head">
+      <span class="panel-tag" id="target-kind">TARGET</span>
+      <button type="button" class="panel-close" data-close>CLOSE</button>
+    </header>
+    <div class="panel-body">
+      <h2 id="target-title">—</h2>
+      <p class="panel-sub" id="target-sub"></p>
+      <figure class="target-figure" id="target-figure" hidden>
+        <img id="target-img" alt="Live camera snapshot" />
+        <figcaption id="target-caption">snapshot refreshes every 20 s</figcaption>
+      </figure>
+      <dl class="meta" id="target-meta"></dl>
+      <div class="cta-row">
+        <button type="button" class="btn btn-ghost btn-sm" id="target-fly">FLY TO</button>
+        <button type="button" class="btn btn-ghost btn-sm" id="target-follow" hidden>FOLLOW</button>
+        <button type="button" class="btn btn-ghost btn-sm" id="target-cockpit" hidden>COCKPIT</button>
+        <a class="btn btn-ghost btn-sm" id="target-open" href="#" target="_blank" rel="noopener" hidden>OPEN IMAGE</a>
+        <button type="button" class="btn btn-ghost btn-sm" id="target-next">NEXT</button>
+      </div>
+      <div class="nearby" id="nearby" hidden>
+        <p class="nearby-head">CONTACTS WITHIN 250 KM</p>
+        <ul id="nearby-list"></ul>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ====== INTEL ====== -->
+  <section class="panel" id="panel-intel" hidden>
+    <header class="panel-head"><span class="panel-tag">// 01 INTEL</span><button type="button" class="panel-close" data-close>CLOSE</button></header>
+    <div class="panel-body">
+      <h2>What the Eye sees</h2>
+      <p class="panel-sub">It looks like a forbidden cockpit. It is also a memecoin. Both halves are the magic. Everything below is real, public and live.</p>
+      <ul class="cards">
+        <li><span class="idx">01</span><h3>Live aircraft</h3><p>Thousands of real ADS-B transponders from the OpenSky Network, refreshed every minute and dead-reckoned in between. Click one, follow it, or ride in the cockpit.</p></li>
+        <li><span class="idx">02</span><h3>6,500+ public cameras</h3><p>Traffic and weather cameras from London, Hong Kong, Sydney, Austin, Oregon, Calgary, Norway, Finland, Estonia and Tallinn. Open one, fly down, watch it refresh.</p></li>
+        <li><span class="idx">03</span><h3>Satellites in orbit</h3><p>The ISS, Tiangong, Hubble and the brightest objects in orbit, propagated live from CelesTrak orbital elements.</p></li>
+        <li><span class="idx">04</span><h3>Earthquakes, radar, cables</h3><p>USGS earthquakes from the last 24 hours, RainViewer weather radar and the global submarine cable map, one switch each.</p></li>
+        <li><span class="idx">05</span><h3>Photoreal globe, day and night</h3><p>Real satellite imagery, a live day-night terminator and VIIRS city lights on the dark side. 3D, top-down or flat map. Add a free Cesium ion token for terrain and 3D buildings.</p></li>
+        <li><span class="idx">06</span><h3>Reskin reality</h3><p>Electro-optical, FLIR thermal, night vision, CRT. Your portfolio imaged in every spectrum. Still red in all of them.</p></li>
+        <li><span class="idx">07</span><h3>Search and share</h3><p>Type coordinates or a place name to fly there. Hit SHARE and the camera, layers and tracked target serialize into a link.</p></li>
+        <li><span class="idx">08</span><h3>No bag left behind</h3><p>Every whale, every rug, every jeet. Tracked from 560 km up. $EYE is the ticker of the watchers.</p></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ====== TOKENOMICS ====== -->
+  <section class="panel" id="panel-tokenomics" hidden>
+    <header class="panel-head"><span class="panel-tag">// 02 TELEMETRY</span><button type="button" class="panel-close" data-close>CLOSE</button></header>
+    <div class="panel-body">
+      <h2>Tokenomics</h2>
+      <p class="panel-sub">Simple numbers. Nothing hidden. The Eye would know.</p>
+      <ul class="stats">
+        <li><span class="stat-label">TOTAL SUPPLY</span><span class="stat-value">1,000,000,000</span><span class="stat-sub">$EYE</span></li>
+        <li><span class="stat-label">TAX</span><span class="stat-value">0 / 0</span><span class="stat-sub">buy / sell</span></li>
+        <li><span class="stat-label">LIQUIDITY</span><span class="stat-value">100%</span><span class="stat-sub">burned</span></li>
+        <li><span class="stat-label">MINT AUTHORITY</span><span class="stat-value">REVOKED</span><span class="stat-sub">no new tokens, ever</span></li>
+        <li><span class="stat-label">LAUNCH</span><span class="stat-value">FAIR</span><span class="stat-sub">no presale, no team allocation</span></li>
+        <li><span class="stat-label">CHAIN</span><span class="stat-value">SOLANA</span><span class="stat-sub">fast enough to track jeets</span></li>
+      </ul>
+      <div class="ca-box"><span class="ca-label">CA</span><code class="ca-text-3">xxxxxxxxxxxxxxxxxxxxxxxxxxxxx</code><button type="button" class="btn-copy" data-copy-ca>COPY</button></div>
+    </div>
+  </section>
+
+  <!-- ====== HOW TO BUY ====== -->
+  <section class="panel" id="panel-buy" hidden>
+    <header class="panel-head"><span class="panel-tag">// 03 ACQUIRE TARGET</span><button type="button" class="panel-close" data-close>CLOSE</button></header>
+    <div class="panel-body">
+      <h2>How to buy $EYE</h2>
+      <p class="panel-sub">Four steps from civilian to orbital operator.</p>
+      <ol class="steps">
+        <li><span class="idx">01</span><h3>Get a wallet</h3><p>Install <a href="https://phantom.app" target="_blank" rel="noopener">Phantom</a> or <a href="https://solflare.com" target="_blank" rel="noopener">Solflare</a>. Back up your seed phrase. The Eye cannot recover it for you.</p></li>
+        <li><span class="idx">02</span><h3>Load it with SOL</h3><p>Buy SOL on any exchange and send it to your wallet. Keep a little extra for fees.</p></li>
+        <li><span class="idx">03</span><h3>Paste the CA</h3><p>Open <a data-link="buy" href="#" target="_blank" rel="noopener">the swap</a>, paste the official $EYE contract address from this page, set your amount.</p></li>
+        <li><span class="idx">04</span><h3>Swap and watch the globe</h3><p>Confirm. You are now a contact on the globe. Welcome aboard, operator.</p></li>
+      </ol>
+      <div class="ca-box"><span class="ca-label">CA</span><code class="ca-text-3">xxxxxxxxxxxxxxxxxxxxxxxxxxxxx</code><button type="button" class="btn-copy" data-copy-ca>COPY</button></div>
+      <div class="cta-row"><a class="btn btn-primary btn-sm" data-link="buy" href="#" target="_blank" rel="noopener">BUY $EYE</a><a class="btn btn-ghost btn-sm" data-link="chart" href="#" target="_blank" rel="noopener">CHART</a></div>
+    </div>
+  </section>
+
+  <!-- ====== ROADMAP ====== -->
+  <section class="panel" id="panel-roadmap" hidden>
+    <header class="panel-head"><span class="panel-tag">// 04 MISSION PLAN</span><button type="button" class="panel-close" data-close>CLOSE</button></header>
+    <div class="panel-body">
+      <h2>Roadmap</h2>
+      <p class="panel-sub">No roadmap survives contact with the market. This one at least has phases.</p>
+      <ul class="phases">
+        <li><span class="idx">PHASE 1</span><h3>Acquire target</h3><p>Fair launch on Solana. Live globe, socials and CA public. LP burned, mint revoked. First 1,000 operators.</p></li>
+        <li><span class="idx">PHASE 2</span><h3>Lock on</h3><p>Dexscreener, CoinGecko and CMC listings. Meme arsenal and raid ops. Community whale-tracking threads.</p></li>
+        <li><span class="idx">PHASE 3</span><h3>Full coverage</h3><p>Holders as live contacts on the globe. Ships, more cameras, more cities. CEX listings.</p></li>
+        <li><span class="idx">PHASE 4</span><h3>No place left behind</h3><p>Orbital dominance. The Eye sees all.</p></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ====== CAMERAS ====== -->
+  <section class="panel panel-wide" id="panel-cameras" hidden>
+    <header class="panel-head"><span class="panel-tag">// LIVE CAMERAS</span><button type="button" class="panel-close" data-close>CLOSE</button></header>
+    <div class="panel-body">
+      <h2>Public cameras</h2>
+      <p class="panel-sub"><b id="cam-count">—</b> real cameras in 10 networks. Click one to fly down to it.</p>
+      <div class="wall-tools">
+        <select id="wall-source" aria-label="Camera network"><option value="">ALL NETWORKS</option></select>
+        <input id="wall-filter" type="search" placeholder="filter by name" autocomplete="off" />
+        <button type="button" class="btn btn-ghost btn-sm" id="wall-shuffle">SHUFFLE</button>
+      </div>
+      <div class="wall" id="wall"></div>
+      <div class="cta-row"><button type="button" class="btn btn-ghost btn-sm" id="wall-random">RANDOM ON GLOBE</button></div>
+    </div>
+  </section>
+
+  <!-- ====== CONTACTS ====== -->
+  <section class="panel" id="panel-flights" hidden>
+    <header class="panel-head"><span class="panel-tag">// LIVE CONTACTS</span><button type="button" class="panel-close" data-close>CLOSE</button></header>
+    <div class="panel-body">
+      <h2>Contacts</h2>
+      <p class="panel-sub" id="flights-status">Waiting for feed…</p>
+      <div class="tabs"><button type="button" class="on" data-tab="planes">AIRCRAFT</button><button type="button" data-tab="sats">SATELLITES</button><button type="button" data-tab="quakes">EARTHQUAKES</button></div>
+      <table class="board"><thead id="board-head"></thead><tbody id="board"></tbody></table>
+      <div class="cta-row"><button type="button" class="btn btn-ghost btn-sm" id="board-refresh">NEW SAMPLE</button><button type="button" class="btn btn-ghost btn-sm" id="board-track">TRACK RANDOM</button></div>
+    </div>
+  </section>
+
+  <!-- ====== SOCIALS ====== -->
+  <section class="panel" id="panel-community" hidden>
+    <header class="panel-head"><span class="panel-tag">// JOIN THE WATCH</span><button type="button" class="panel-close" data-close>CLOSE</button></header>
+    <div class="panel-body">
+      <img src="/logo.svg" alt="" class="panel-logo" />
+      <h2>Join the watch</h2>
+      <p class="panel-sub">Half the magic is that it looks like a forbidden cockpit. The other half is that everyone is welcome inside.</p>
+      <div class="cta-col">
+        <a class="btn btn-primary" data-link="x" href="#" target="_blank" rel="noopener">FOLLOW ON X</a>
+        <a class="btn btn-ghost" data-link="telegram" href="#" target="_blank" rel="noopener">JOIN TELEGRAM</a>
+        <a class="btn btn-ghost" data-link="chart" href="#" target="_blank" rel="noopener">VIEW CHART</a>
+        <a class="btn btn-ghost" data-link="buy" href="#" target="_blank" rel="noopener">BUY $EYE</a>
+      </div>
+      <p class="fine">$EYE is a memecoin created for entertainment. It has no intrinsic value, no utility and no expectation of financial return. Nothing here is financial advice. Never invest more than you can afford to lose. Not affiliated with any government, satellite operator or the open-source God's Eye View project.</p>
+      <p class="fine">Data: aircraft from the <a href="https://opensky-network.org" target="_blank" rel="noopener">OpenSky Network</a> (adsb.lol fallback); satellites from <a href="https://celestrak.org" target="_blank" rel="noopener">CelesTrak</a>; earthquakes from USGS; radar from RainViewer; cables from TeleGeography; cameras from TfL Open Data, HK Transport Department (data.gov.hk), Live Traffic NSW (CC BY 4.0), City of Austin, Oregon DOT TripCheck, Open Calgary, Statens vegvesen (NLOD 2.0), Fintraffic Digitraffic (CC BY 4.0), Transpordiamet and the City of Tallinn; imagery by Esri and partners, NASA GIBS; globe by CesiumJS.</p>
+    </div>
+  </section>
+
+  <script src="https://cesium.com/downloads/cesiumjs/releases/1.120/Build/Cesium/Cesium.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/satellite.js/5.0.0/satellite.min.js"></script>
+  <script src="/script.js"></script>
+</body>
+</html>

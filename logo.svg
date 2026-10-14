@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="God's Eye View $EYE">
+  <defs>
+    <radialGradient id="iris" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#e8feff"/>
+      <stop offset="35%" stop-color="#22e6e6"/>
+      <stop offset="75%" stop-color="#0a6a78"/>
+      <stop offset="100%" stop-color="#04171a"/>
+    </radialGradient>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="2.2" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <!-- outer eye -->
+  <path d="M8 64 C30 28 98 28 120 64 C98 100 30 100 8 64 Z" fill="#0b1a1f" stroke="#22e6e6" stroke-width="4" stroke-linejoin="round" filter="url(#glow)"/>
+  <!-- iris / globe -->
+  <circle cx="64" cy="64" r="26" fill="url(#iris)" stroke="#22e6e6" stroke-width="2"/>
+  <!-- graticule -->
+  <g fill="none" stroke="#04171a" stroke-width="1.2" opacity="0.8">
+    <ellipse cx="64" cy="64" rx="26" ry="10"/>
+    <ellipse cx="64" cy="64" rx="10" ry="26"/>
+    <line x1="38" y1="64" x2="90" y2="64"/>
+    <line x1="64" y1="38" x2="64" y2="90"/>
+  </g>
+  <!-- pupil -->
+  <circle cx="64" cy="64" r="9" fill="#04171a"/>
+  <circle cx="60" cy="59" r="3" fill="#ffffff" opacity="0.9"/>
+  <!-- orbit ring + satellite -->
+  <ellipse cx="64" cy="64" rx="48" ry="14" fill="none" stroke="#ffb800" stroke-width="1.6" stroke-dasharray="3 4" transform="rotate(-20 64 64)"/>
+  <circle cx="106" cy="46" r="3.2" fill="#ffb800"/>
+</svg>

@@ -266,7 +266,7 @@ function renderHunt() {
   for (let i = 0; i < total; i++) { const f = mine.find((e) => e.idx === i); const d = document.createElement("div"); d.className = "eye" + (f ? " on" : ""); d.title = f ? `${f.title} (${f.difficulty})` : "Still hidden this round"; d.innerHTML = `<img src="/logo.svg" alt="" /><span>${pad(i + 1, 2)}</span>`; eyes.appendChild(d); }
   $("hunt-participants").textContent = fmtInt(st.participants || 0);
   $("hunt-winners").textContent = rd.winners ?? 0; $("hunt-max").textContent = rd.winnersMax ?? "—"; $("hunt-max-2").textContent = rd.winnersMax ?? "—";
-  $("hunt-target").textContent = target; $("hunt-reward").textContent = rd.rewardSol ?? "—";
+  $("hunt-target").textContent = target >= total ? `all ${total}` : target; $("hunt-reward").textContent = rd.rewardSol ?? "—";
   $("hunt-lb").innerHTML = (st.leaderboard || []).map((r, i) => `<tr${r.wallet === hunt.wallet ? ' style="color:#ffb800"' : ""}><td>${i + 1}</td><td class="dim">${shortW(r.wallet)}</td><td>${r.found}/${total}</td><td>${r.paid ? "PAID" : r.done ? "TARGET HIT" : "HUNTING"}</td></tr>`).join("") || `<tr><td colspan="4" class="dim">No finds yet this round. Be the first.</td></tr>`;
   $("hunt-alltime").innerHTML = (st.allTime || []).filter((r) => r.wins || r.found).slice(0, 10).map((r, i) => `<tr${r.wallet === hunt.wallet ? ' style="color:#ffb800"' : ""}><td>${i + 1}</td><td class="dim">${shortW(r.wallet)}</td><td>${r.wins}</td><td>${r.sol}</td></tr>`).join("") || `<tr><td colspan="4" class="dim">No winners yet.</td></tr>`;
   hud.eyes.textContent = hunt.wallet ? `${mine.length}/${total}` : "—";

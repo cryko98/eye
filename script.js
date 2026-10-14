@@ -541,7 +541,7 @@ const globe = {};
     if (!planes.show || scene.mode !== Cesium.SceneMode.SCENE3D && scene.mode !== Cesium.SceneMode.SCENE2D) return;
     const now = Date.now();
     for (let i = 0; i < planes.length; i++) { const bb = planes.get(i), p = bb.id.p; if (!p.v) continue; const q = planePos(p, now); bb.position = C3.fromDegrees(q.lon, q.lat, q.alt); }
-  }, 2000);
+  }, 1000);
 
   satsReady.then((sats) => {
     for (const s of sats) {

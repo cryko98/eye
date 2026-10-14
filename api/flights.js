@@ -16,12 +16,23 @@
 const OPENSKY_URL = "https://opensky-network.org/api/states/all";
 const TOKEN_URL = "https://auth.opensky-network.org/auth/realms/opensky-network/protocol/openid-connect/token";
 const MAX_ROWS = 6000;
-const TTL_MS = 45_000;
+const TTL_MS = 60_000;
 
 // Fallback: adsb.lol has no global endpoint, so sample busy regions (250 nm each).
+// Fallback sources only answer within 250 nm of a point, so we sample ~50 hubs that cover every busy region.
 const FALLBACK_HUBS = [
-  [51.5, -0.1], [40.7, -74.0], [50.1, 8.7], [25.3, 55.4], [35.7, 139.7], [34.0, -118.2],
-  [41.9, 12.5], [1.35, 103.8], [-23.5, -46.6], [19.1, 72.9], [33.7, -84.4], [48.9, 2.3],
+  // Europe
+  [51.5, -0.1], [48.9, 2.3], [50.1, 8.7], [40.4, -3.7], [41.9, 12.5], [52.2, 21.0], [59.3, 18.0], [41.0, 29.0], [38.0, 23.7], [55.75, 37.6], [53.3, -6.3], [47.5, 19.0], [60.2, 24.9], [43.3, -8.4],
+  // North America
+  [40.7, -74.0], [41.9, -87.6], [33.7, -84.4], [32.8, -96.8], [39.7, -104.9], [34.0, -118.2], [37.6, -122.4], [47.4, -122.3], [25.8, -80.2], [43.7, -79.4], [19.4, -99.1], [44.9, -93.2], [33.4, -112.0], [49.2, -123.1], [51.0, -114.0], [61.2, -149.9], [21.3, -157.9],
+  // South America
+  [-23.5, -46.6], [4.7, -74.1], [-33.4, -70.7], [-34.6, -58.4], [-12.0, -77.0],
+  // Middle East, Asia
+  [25.3, 55.4], [24.7, 46.7], [32.0, 34.8], [28.6, 77.2], [19.1, 72.9], [13.7, 100.5], [1.35, 103.8], [22.3, 114.2], [31.2, 121.5], [39.9, 116.4], [37.5, 127.0], [35.7, 139.7], [25.0, 121.5], [14.6, 121.0], [-6.2, 106.8],
+  // Oceania
+  [-33.9, 151.2], [-37.8, 145.0], [-27.4, 153.0], [-31.9, 115.9], [-36.8, 174.8],
+  // Africa
+  [-26.2, 28.0], [30.0, 31.2], [-1.3, 36.8], [6.5, 3.4], [33.6, -7.6], [9.0, 38.7],
 ];
 
 let cache = { t: 0, body: null };
@@ -63,9 +74,12 @@ const HUB_SOURCES = {
   "adsb.lol": (lat, lon) => `https://api.adsb.lol/v2/lat/${lat}/lon/${lon}/dist/250`,
   "adsb.fi": (lat, lon) => `https://opendata.adsb.fi/api/v2/lat/${lat}/lon/${lon}/dist/250`,
 };
-async function fromHubs(name) {
+async function runBatches(items, size, fn) {
+  for (let i = 0; i < items.length; i += size) await Promise.all(items.slice(i, i + size).map(fn));
+}
+async function fromHubs(name, concurrency = 12) {
   const seen = new Map(); const errors = [];
-  await Promise.all(FALLBACK_HUBS.map(async ([lat, lon]) => {
+  await runBatches(FALLBACK_HUBS, concurrency, async ([lat, lon]) => {
     try {
       const r = await fetch(HUB_SOURCES[name](lat, lon), { headers: { "User-Agent": "gods-eye-view-eye/1.0 (+https://github.com/cryko98/eye)" }, signal: AbortSignal.timeout(7000) });
       if (!r.ok) { errors.push(`${r.status}`); return; }
@@ -79,7 +93,7 @@ async function fromHubs(name) {
         ]);
       }
     } catch (e) { errors.push(String(e.message || e).slice(0, 40)); }
-  }));
+  });
   const rows = [...seen.values()];
   if (!rows.length) throw new Error(`${name} empty (${errors.slice(0, 3).join(", ") || "no data"})`);
   return { time: Math.floor(Date.now() / 1000), total: rows.length, source: name, rows };
@@ -88,7 +102,7 @@ async function fromHubs(name) {
 function send(res, body, state) {
   res.setHeader("Content-Type", "application/json; charset=utf-8");
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Cache-Control", "public, s-maxage=45, stale-while-revalidate=600, max-age=20");
+  res.setHeader("Cache-Control", "public, s-maxage=60, stale-while-revalidate=600, max-age=20");
   res.setHeader("X-Feed-State", state);
   res.statusCode = 200;
   res.end(body);
@@ -97,13 +111,22 @@ function send(res, body, state) {
 let openskyDownUntil = 0;
 async function loadAny() {
   const reasons = [];
-  const attempts = [["opensky", fromOpenSky], ["adsb.lol", () => fromHubs("adsb.lol")], ["adsb.fi", () => fromHubs("adsb.fi")]];
-  for (const [name, fn] of attempts) {
-    if (name === "opensky" && Date.now() < openskyDownUntil) { reasons.push("opensky: skipped (recent failure)"); continue; }
-    try { const data = await fn(); if (reasons.length) data.fallbackReason = reasons.join(" | "); return data; }
-    catch (e) { reasons.push(`${name}: ${String(e.message || e).slice(0, 80)}`); if (name === "opensky") openskyDownUntil = Date.now() + 10 * 60_000; }
+  if (Date.now() < openskyDownUntil) reasons.push("opensky: skipped (recent failure)");
+  else {
+    try { return await fromOpenSky(); }
+    catch (e) { reasons.push(`opensky: ${String(e.message || e).slice(0, 80)}`); openskyDownUntil = Date.now() + 10 * 60_000; }
   }
-  throw new Error(reasons.join(" | "));
+  // Both hub sources at once, merged by ICAO hex: adsb.fi answers fast, adsb.lol fills in what it can within the budget.
+  const results = await Promise.allSettled([fromHubs("adsb.fi", 20), fromHubs("adsb.lol", 8)]);
+  const merged = new Map(); const used = [];
+  for (const r of results) {
+    if (r.status !== "fulfilled") { reasons.push(String(r.reason?.message || r.reason).slice(0, 80)); continue; }
+    used.push(`${r.value.source} ${r.value.rows.length}`);
+    for (const row of r.value.rows) if (!merged.has(row[0])) merged.set(row[0], row);
+  }
+  if (!merged.size) throw new Error(reasons.join(" | "));
+  const rows = [...merged.values()].slice(0, MAX_ROWS);
+  return { time: Math.floor(Date.now() / 1000), total: rows.length, source: used.map((u) => u.split(" ")[0]).join("+"), sources: used, fallbackReason: reasons.join(" | ") || undefined, rows };
 }
 
 module.exports = async function handler(req, res) {

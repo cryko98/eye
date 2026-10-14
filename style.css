@@ -239,6 +239,41 @@ code { font-family: var(--mono); }
 .board button { background: transparent; border: 1px solid var(--line-strong); border-radius: 4px; color: var(--cyan); font-family: var(--mono); font-size: 0.56rem; letter-spacing: 0.12em; padding: 0.2rem 0.42rem; cursor: pointer; }
 .board button:hover { background: rgba(34, 230, 230, 0.14); }
 
+/* ---------- detection overlay ---------- */
+.detect { position: absolute; inset: 0; z-index: 7; pointer-events: none; }
+
+/* ---------- route tool ---------- */
+.ctl-group select { background: rgba(0, 0, 0, 0.35); border: 1px solid var(--line); border-radius: 5px; padding: 0.32rem 0.4rem; font-family: var(--mono); font-size: 0.62rem; letter-spacing: 0.08em; color: var(--cyan-soft); outline: none; }
+.ctl-group select option { background: #0b1216; }
+.route-status { font-family: var(--mono); font-size: 0.58rem; letter-spacing: 0.1em; color: var(--amber); padding: 0 0.4rem; }
+.route-status:empty { display: none; }
+
+/* ---------- cockpit instruments ---------- */
+.cockpit { position: absolute; inset: var(--top) 0 0 0; z-index: 9; pointer-events: none; font-family: var(--mono); color: var(--cyan); letter-spacing: 0.08em; }
+.cockpit button, .cockpit a { pointer-events: auto; }
+.ck-top { position: absolute; top: 46px; left: 50%; transform: translateX(-50%); font-size: 0.62rem; display: flex; gap: 0.8rem; align-items: baseline; background: rgba(7, 11, 14, 0.55); border: 1px solid var(--line); border-radius: 6px; padding: 0.3rem 0.7rem; }
+.ck-top b { font-size: 0.78rem; color: #fff; font-weight: 600; }
+.ck-horizon { position: absolute; left: 20%; right: 20%; top: 50%; height: 0; border-top: 1px dashed rgba(34, 230, 230, 0.45); }
+.ck-horizon::before, .ck-horizon::after { content: ""; position: absolute; top: -8px; width: 1px; height: 16px; background: rgba(34, 230, 230, 0.6); }
+.ck-horizon::before { left: 0; } .ck-horizon::after { right: 0; }
+.ck-reticle { position: absolute; left: 50%; top: 50%; width: 34px; height: 34px; transform: translate(-50%, -50%); border: 1px solid var(--cyan); border-radius: 50%; box-shadow: 0 0 12px rgba(34, 230, 230, 0.4); }
+.ck-reticle::after { content: ""; position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px; background: var(--cyan); border-radius: 50%; }
+.ck-strip { position: absolute; left: calc(var(--gap) + 14px); top: 150px; width: min(360px, 34vw); display: grid; gap: 0.45rem; font-size: 0.62rem; background: rgba(7, 11, 14, 0.6); border: 1px solid var(--line); border-radius: 8px; padding: 0.7rem 0.8rem; backdrop-filter: blur(8px); }
+.ck-row { display: grid; gap: 0.15rem; }
+.ck-row > span { color: var(--amber); font-size: 0.56rem; letter-spacing: 0.18em; }
+.ck-row > b { color: var(--cyan-soft); font-weight: 500; line-height: 1.4; }
+.ck-row a { color: var(--cyan); }
+.ck-news ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.25rem; font-family: var(--sans); font-size: 0.74rem; letter-spacing: 0; color: var(--text); }
+.ck-news em { font-style: normal; color: var(--muted); letter-spacing: 0.1em; }
+.ck-numbers { position: absolute; bottom: 120px; left: 50%; transform: translateX(-50%); display: flex; gap: clamp(1.2rem, 4vw, 3rem); align-items: flex-end; text-shadow: 0 0 18px rgba(34, 230, 230, 0.6); }
+.ck-numbers div { display: grid; justify-items: center; gap: 0.1rem; }
+.ck-numbers small { font-size: 0.56rem; letter-spacing: 0.22em; color: var(--amber); }
+.ck-numbers b { font-size: clamp(1.6rem, 4vw, 2.6rem); font-weight: 600; color: #fff; line-height: 1; }
+.ck-actions { position: absolute; bottom: 72px; left: 50%; transform: translateX(-50%); display: flex; gap: 0.4rem; }
+.ck-actions button { background: rgba(7, 11, 14, 0.7); border: 1px solid var(--line-strong); border-radius: 5px; color: var(--cyan); font-family: var(--mono); font-size: 0.62rem; letter-spacing: 0.12em; padding: 0.42rem 0.7rem; cursor: pointer; }
+.ck-actions button.on { background: rgba(34, 230, 230, 0.2); }
+@media (max-width: 820px) { .ck-strip { display: none; } .ck-numbers { bottom: 150px; } .ck-actions { bottom: 110px; } }
+
 /* ---------- responsive ---------- */
 @media (max-width: 1280px) {
   .ca-pill { max-width: 220px; }

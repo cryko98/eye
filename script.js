@@ -19,6 +19,7 @@ const CONFIG = {
   // OSM 3D buildings; a Google Maps key adds Photorealistic 3D Tiles like the original.
   cesiumIonToken: "",
   googleMapsApiKey: "",
+  tomtomKey: "",             // optional: live traffic flow layer (TomTom Traffic API)
 };
 
 const $ = (id) => document.getElementById(id);
@@ -68,7 +69,7 @@ dock.querySelectorAll("[data-panel]").forEach((b) => b.addEventListener("click",
   const already = !$(`panel-${b.dataset.panel}`).hidden; already ? closePanels() : openPanel(b.dataset.panel);
 }));
 document.querySelectorAll("[data-close]").forEach((b) => b.addEventListener("click", closePanels));
-document.addEventListener("keydown", (e) => { if (e.key === "Escape") { closePanels(); globe.clearTarget?.(); } });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") { closePanels(); globe.clearTarget?.(); globe.stopFly?.(); } });
 
 /* ---------- HUD ---------- */
 const hud = Object.fromEntries(["clock", "mode", "alt", "lat", "lon", "planes", "cams", "sats", "quakes", "feed", "sensor", "log"].map((k) => [k, $(`hud-${k}`)]));
@@ -243,7 +244,7 @@ const globe = {};
 
   /* ---- imagery ---- */
   const GIBS = (layer, ext, time = "") => `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/${layer}/default/${time ? time + "/" : ""}GoogleMapsCompatible_Level8/{z}/{y}/{x}.${ext}`;
-  let lightsLayer = null, radarLayer = null, labelsLayer = null;
+  let lightsLayer = null, radarLayer = null, labelsLayer = null, trafficLayer = null;
   (async () => {
     try {
       const p = await Cesium.ArcGisMapServerImageryProvider.fromUrl("https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer", { enablePickFeatures: false });
@@ -311,13 +312,26 @@ const globe = {};
   const satPoints = scene.primitives.add(new Cesium.BillboardCollection({ scene }));
   const satLabels = scene.primitives.add(new Cesium.LabelCollection({ scene }));
   const quakePoints = scene.primitives.add(new Cesium.PointPrimitiveCollection());
+  const LOD = [
+    { below: 5e4, cond: new Cesium.DistanceDisplayCondition(0, 6e4) },      // street level: contacts within 60 km only
+    { below: 5e5, cond: new Cesium.DistanceDisplayCondition(0, 4e5) },      // regional: within 400 km
+    { below: Infinity, cond: undefined },                                   // orbit: everything
+  ];
+  let lodIdx = 2, lodCond;
+  function applyLod(height) {
+    const idx = LOD.findIndex((l) => height < l.below); if (idx === lodIdx) return;
+    lodIdx = idx; lodCond = LOD[idx].cond;
+    for (let i = 0; i < planes.length; i++) planes.get(i).distanceDisplayCondition = lodCond;
+    for (let i = 0; i < satPoints.length; i++) satPoints.get(i).distanceDisplayCondition = lodCond;
+    for (let i = 0; i < satLabels.length; i++) satLabels.get(i).distanceDisplayCondition = lodCond;
+  }
   let cablesDs = null;
   const satSvg = (fill, size) => "data:image/svg+xml;utf8," + encodeURIComponent(
     `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 32 32"><g fill="${fill}" stroke="#04171a" stroke-width="1" stroke-linejoin="round"><rect x="13" y="13" width="6" height="6" rx="1"/><rect x="2" y="12.5" width="9" height="7" rx="1"/><rect x="21" y="12.5" width="9" height="7" rx="1"/><path d="M11 16h2M19 16h2M16 11v-4M16 19v4" stroke="${fill}" stroke-width="1.6"/><circle cx="16" cy="5.5" r="2.2"/><path d="M16 23.5l-3 4h6z"/></g><g stroke="#04171a" stroke-width="0.8" opacity="0.7"><path d="M4.5 13v6M7 13v6M9 13v6M23.5 13v6M26 13v6M28.5 13v6"/></g></svg>`);
   const SAT_IMG = satSvg("#22e6e6", 18), SAT_IMG_BIG = satSvg("#ffffff", 26);
   const PLANE_IMG = "data:image/svg+xml;utf8," + encodeURIComponent(
     `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><path d="M12 1.5 L13.6 8.5 L22.5 13 L22.5 15.2 L13.8 12.4 L13.3 18 L16.2 20.2 L16.2 22 L12 20.8 L7.8 22 L7.8 20.2 L10.7 18 L10.2 12.4 L1.5 15.2 L1.5 13 L10.4 8.5 Z" fill="#22e6e6" stroke="#04171a" stroke-width="0.8"/></svg>`);
-  const layerState = { planes: true, cams: true, labels: true, sats: true, quakes: true, radar: false, lights: true, cables: false };
+  const layerState = { planes: true, cams: true, labels: true, sats: true, quakes: true, radar: false, lights: true, cables: false, detect: false, traffic: false };
   async function setLayer(name, on, quiet) {
     layerState[name] = on;
     document.querySelector(`[data-layer="${name}"]`)?.classList.toggle("on", on);
@@ -327,6 +341,14 @@ const globe = {};
     if (name === "quakes") quakePoints.show = on;
     if (name === "lights" && lightsLayer) lightsLayer.show = on;
     if (name === "labels" && labelsLayer) labelsLayer.show = on;
+    if (name === "detect") { $("detect").hidden = !on; if (!on) { const d = $("detect"); d.getContext("2d").clearRect(0, 0, d.width, d.height); } }
+    if (name === "traffic") {
+      if (on && !trafficLayer && CONFIG.tomtomKey) {
+        trafficLayer = viewer.imageryLayers.addImageryProvider(new Cesium.UrlTemplateImageryProvider({ url: `https://api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x}/{y}.png?key=${encodeURIComponent(CONFIG.tomtomKey)}&thickness=10`, maximumLevel: 20, credit: "Traffic flow data © TomTom" }));
+        trafficLayer.alpha = 0.9; if (labelsLayer) viewer.imageryLayers.raiseToTop(labelsLayer);
+      } else if (trafficLayer) trafficLayer.show = on;
+      if (on && !CONFIG.tomtomKey) log("TRAFFIC NEEDS A TOMTOM KEY IN CONFIG");
+    }
     if (name === "radar") {
       if (on && !radarLayer) {
         try {
@@ -349,6 +371,7 @@ const globe = {};
     if (!quiet) log(`LAYER ${name.toUpperCase()} ${on ? "ON" : "OFF"}`);
   }
   document.querySelectorAll("[data-layer]").forEach((b) => b.addEventListener("click", () => setLayer(b.dataset.layer, !layerState[b.dataset.layer])));
+  if (CONFIG.tomtomKey) document.querySelectorAll("[data-tomtom]").forEach((b) => (b.hidden = false));
   // Refresh the radar frame every 10 minutes while it is on.
   setInterval(() => { if (layerState.radar && radarLayer) { viewer.imageryLayers.remove(radarLayer); radarLayer = null; setLayer("radar", true, true); } }, 600_000);
 
@@ -377,7 +400,7 @@ const globe = {};
     for (const p of list) {
       const pos = C3.fromDegrees(p.lon, p.lat, Math.max(p.alt, 50));
       planes.add({ position: pos, image: PLANE_IMG, width: 16, height: 16, rotation: -CM.toRadians(p.hdg || 0), alignedAxis: northAxis(pos),
-        scaleByDistance: new Cesium.NearFarScalar(5e4, 1.3, 2.2e7, 0.5), id: { type: "plane", p } });
+        scaleByDistance: new Cesium.NearFarScalar(5e4, 1.3, 2.2e7, 0.5), distanceDisplayCondition: lodCond, id: { type: "plane", p } });
     }
     if (state.selected?.type === "plane") {
       const fresh = list.find((p) => p.icao === state.selected.p.icao);
@@ -397,9 +420,9 @@ const globe = {};
     for (const s of sats) {
       const named = /ISS \(ZARYA\)|CSS \(TIANHE\)|HST/.test(s.name);
       satPoints.add({ position: C3.ZERO, image: named ? SAT_IMG_BIG : SAT_IMG, width: named ? 26 : 18, height: named ? 26 : 18,
-        scaleByDistance: new Cesium.NearFarScalar(1e6, 1.2, 4e7, 0.6), id: { type: "sat", s } });
+        scaleByDistance: new Cesium.NearFarScalar(1e6, 1.2, 4e7, 0.6), distanceDisplayCondition: lodCond, id: { type: "sat", s } });
       if (named) satLabels.add({ position: C3.ZERO, text: s.name.replace(/ \(.*\)/, ""), font: "500 11px 'JetBrains Mono', monospace", fillColor: WHITE, outlineColor: Cesium.Color.BLACK, outlineWidth: 3,
-        style: Cesium.LabelStyle.FILL_AND_OUTLINE, pixelOffset: new Cesium.Cartesian2(10, -8), horizontalOrigin: Cesium.HorizontalOrigin.LEFT, id: { type: "sat", s } });
+        style: Cesium.LabelStyle.FILL_AND_OUTLINE, pixelOffset: new Cesium.Cartesian2(10, -8), horizontalOrigin: Cesium.HorizontalOrigin.LEFT, distanceDisplayCondition: lodCond, id: { type: "sat", s } });
     }
     tickSats(); applyHashTarget();
   });
@@ -419,6 +442,7 @@ const globe = {};
   const setMeta = (rows) => (T.meta.innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join(""));
   const stopFollow = (quiet) => {
     if (follow || cockpit) { camera.lookAtTransform(Cesium.Matrix4.IDENTITY); scene.screenSpaceCameraController.enableInputs = true; }
+    if (cockpit) exitCockpitHud();
     follow = null; cockpit = null; T.follow.textContent = "FOLLOW"; T.cockpit.textContent = "COCKPIT"; T.follow.classList.remove("on"); T.cockpit.classList.remove("on");
     hud.mode.textContent = state.selected ? "TRACK" : scene.mode === Cesium.SceneMode.SCENE2D ? "2D MAP" : "ORBIT";
     if (!quiet) pauseRotation();
@@ -448,8 +472,26 @@ const globe = {};
     const now = Date.now();
     const list = state.planes.filter((p) => p !== sel.p).map((p) => { const q = planePos(p, now); return { p, d: haversine(pos.lat, pos.lon, q.lat, q.lon) }; }).filter((x) => x.d < 250).sort((a, b) => a.d - b.d).slice(0, 6);
     T.nearby.hidden = !list.length;
-    T.nearbyList.innerHTML = list.map((x, i) => `<li>${esc(x.p.cs || x.p.icao.toUpperCase())}<span>${fmtInt(x.d)} km · ${fmtInt(x.p.alt * 3.281)} ft</span><button type="button" data-n="${i}">TRACK</button></li>`).join("");
-    T.nearbyList.querySelectorAll("button").forEach((b) => b.addEventListener("click", () => globe.selectPlane(list[+b.dataset.n].p)));
+    T.nearbyList.innerHTML = list.map((x, i) => `<li>${esc(x.p.cs || x.p.icao.toUpperCase())}<span>${fmtInt(x.d)} km · ${fmtInt(x.p.alt * 3.281)} ft</span><button type="button" data-n="${i}">TRACK</button><button type="button" data-c="${i}">COCKPIT</button></li>`).join("");
+    T.nearbyList.querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
+      if (b.dataset.c != null) { globe.selectPlane(list[+b.dataset.c].p, false); T.cockpit.click(); } else globe.selectPlane(list[+b.dataset.n].p);
+    }));
+  }
+  const acCache = new Map();
+  async function aircraftInfo(icao, cs) {
+    const key = icao.toLowerCase();
+    if (acCache.has(key)) return acCache.get(key);
+    const info = { type: "", reg: "", operator: "", route: "", photo: null, photoLink: "", photographer: "", source: "" };
+    try {
+      const j = await fetch(`https://api.adsbdb.com/v0/aircraft/${key}${cs ? `?callsign=${encodeURIComponent(cs)}` : ""}`).then((r) => r.json());
+      const a = j.response?.aircraft, f = j.response?.flightroute;
+      if (a) { info.type = [a.manufacturer, a.type].filter(Boolean).join(" "); info.reg = a.registration || ""; info.operator = a.registered_owner || ""; if (a.url_photo_thumbnail) { info.photo = a.url_photo_thumbnail; info.photoLink = a.url_photo || a.url_photo_thumbnail; info.source = "Planespotters.net via adsbdb"; } }
+      if (f && (f.origin || f.destination)) { const ap = (x) => x ? `${x.iata_code || x.icao_code || "?"} ${x.municipality || x.name || ""}`.trim() : "?"; info.route = `${ap(f.origin)} → ${ap(f.destination)}${f.airline?.name ? ` · ${f.airline.name}` : ""}`; }
+    } catch {}
+    if (!info.photo) {
+      try { const j = await fetch(`https://api.planespotters.net/pub/photos/hex/${key}`).then((r) => r.json()); const p = j.photos?.[0]; if (p) { info.photo = (p.thumbnail_large || p.thumbnail).src; info.photoLink = p.link; info.photographer = p.photographer || ""; info.source = "Planespotters.net"; } } catch {}
+    }
+    acCache.set(key, info); return info;
   }
   async function showTarget(sel, fly) {
     const changed = state.selected?.type !== sel.type || livePos(state.selected) !== livePos(sel);
@@ -463,6 +505,7 @@ const globe = {};
       const c = sel.cam, src = state.camSources[c.s];
       T.kind.textContent = "CAMERA · LIVE"; T.title.textContent = c.n; T.sub.textContent = `${c.place} · ${src.name}`;
       T.fig.hidden = false; T.cap.textContent = "acquiring frame…";
+      T.open.textContent = "OPEN IMAGE";
       const refresh = async () => { const u = await camUrl(c); if (u) { T.img.src = u; T.open.href = u; T.open.hidden = false; T.cap.textContent = `snapshot refreshes every 20 s · ${new Date().toISOString().slice(11, 19)}Z`; } else T.cap.textContent = "frame unavailable right now"; };
       refresh(); imgTimer = setInterval(refresh, 20000);
       T.img.onerror = () => (T.cap.textContent = "frame unavailable right now");
@@ -477,6 +520,18 @@ const globe = {};
         ["HEADING", `${p.hdg}°`], ["V/S", `${p.vr > 0 ? "+" : ""}${p.vr} m/s`], ["POSITION", `${p.lat.toFixed(3)}, ${p.lon.toFixed(3)}`], ["FEED", `${state.source} · ${state.feed}`]]);
       const q = planePos(p); marker.position = C3.fromDegrees(q.lon, q.lat, q.alt);
       log(`TRACKING ${cs} · FL${pad(Math.round(p.alt * 3.281 / 100), 3)} · ${fmtInt(p.v * 1.944)} KT`);
+      aircraftInfo(p.icao, p.cs).then((info) => {
+        if (state.selected?.type !== "plane" || state.selected.p.icao !== p.icao) return;
+        const rows = [];
+        if (info.type) rows.push(["TYPE", esc(info.type)]); if (info.reg) rows.push(["REG", esc(info.reg)]); if (info.operator) rows.push(["OPERATOR", esc(info.operator)]); if (info.route) rows.push(["ROUTE", esc(info.route)]);
+        if (rows.length) T.meta.insertAdjacentHTML("afterbegin", rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join(""));
+        if (info.type || info.operator) T.sub.textContent = [info.type, info.operator, p.country ? `registered in ${p.country}` : ""].filter(Boolean).join(" · ");
+        if (info.photo) {
+          T.fig.hidden = false; T.img.src = info.photo; T.img.onerror = () => { T.fig.hidden = true; };
+          T.cap.innerHTML = `${info.photographer ? `© ${esc(info.photographer)} · ` : ""}<a href="${esc(info.photoLink)}" target="_blank" rel="noopener">${esc(info.source)}</a>`;
+          T.open.href = info.photoLink; T.open.textContent = "OPEN PHOTO"; T.open.hidden = false;
+        } else T.cap.textContent = "";
+      });
     } else if (sel.type === "sat") {
       const s = sel.s, geo = satGeo(s) || s.geo || { lon: 0, lat: 0, alt: 0, speed: 0 };
       T.kind.textContent = "SATELLITE · TLE"; T.title.textContent = s.name; T.sub.textContent = `NORAD ${s.norad} · CelesTrak ${s.group} group`;
@@ -522,10 +577,11 @@ const globe = {};
     if (cockpit) return stopFollow();
     const sel = state.selected; if (!sel) return;
     camera.lookAtTransform(Cesium.Matrix4.IDENTITY); follow = null; T.follow.textContent = "FOLLOW"; T.follow.classList.remove("on");
-    cockpit = { sel }; scene.screenSpaceCameraController.enableInputs = false;
+    cockpit = { sel }; scene.screenSpaceCameraController.enableInputs = false; enterCockpitHud(sel);
     T.cockpit.textContent = "EXIT COCKPIT"; T.cockpit.classList.add("on"); hud.mode.textContent = "COCKPIT"; log(`COCKPIT VIEW · ${T.title.textContent.toUpperCase()}`);
   });
   scene.preRender.addEventListener(() => {
+    if (route.fly) { flyStep(); return; }
     if (follow) {
       const pos = livePos(follow.sel); if (!pos) return;
       const range = C3.magnitude(camera.position), hpr = new Cesium.HeadingPitchRange(camera.heading, camera.pitch, range);
@@ -535,6 +591,7 @@ const globe = {};
       const sel = cockpit.sel, pos = livePos(sel); if (!pos) return;
       const h = liveHeading(sel), isSat = sel.type === "sat";
       camera.setView({ destination: C3.fromDegrees(pos.lon, pos.lat, pos.alt + (isSat ? 0 : 6)), orientation: { heading: h, pitch: CM.toRadians(isSat ? -38 : -9), roll: 0 } });
+      updateCockpitHud(sel, pos, h);
     } else if (state.selected && (state.selected.type === "plane" || state.selected.type === "sat")) {
       const pos = livePos(state.selected); if (pos) marker.position = C3.fromDegrees(pos.lon, pos.lat, pos.alt);
     }
@@ -543,7 +600,10 @@ const globe = {};
   const handler = new Cesium.ScreenSpaceEventHandler(scene.canvas);
   handler.setInputAction((m) => {
     const picked = scene.pick(m.position), id = picked && picked.id;
-    if (!id) return;
+    if (!id) {
+      if (svPick) { const p = camera.pickEllipsoid(m.position); if (p) { const c = Cesium.Cartographic.fromCartesian(p); setSvPick(false); globe.openStreetView(CM.toDegrees(c.latitude), CM.toDegrees(c.longitude), CM.toDegrees(camera.heading)); } return; }
+      if (route.drawing) addWaypoint(m.position); return;
+    }
     if (id.type === "cam") globe.selectCam(id.cam); else if (id.type === "plane") globe.selectPlane(id.p);
     else if (id.type === "sat") globe.selectSat(id.s); else if (id.type === "quake") globe.selectQuake(id.q);
     else if (id.properties?.name) log(`CABLE · ${String(id.name || id.properties.name).toUpperCase()}`);
@@ -571,9 +631,11 @@ const globe = {};
     const canRotate = scene.mode === Cesium.SceneMode.SCENE3D && !follow && !cockpit && !state.selected;
     if (!rotating && !reduceMotion && canRotate && now - idleAt > 25000 && camera.positionCartographic.height > 3e6) rotating = true;
     if (rotating && canRotate) camera.rotate(C3.UNIT_Z, -0.0006);
+    if (layerState.detect) drawDetections();
     if (now - lastHud > 250) {
       lastHud = now;
       const c = camera.positionCartographic, lat = CM.toDegrees(c.latitude), lon = CM.toDegrees(c.longitude);
+      applyLod(c.height);
       hud.clock.textContent = new Date().toISOString().slice(11, 19) + "Z";
       hud.lat.textContent = `${Math.abs(lat).toFixed(2)}°${lat >= 0 ? "N" : "S"}`;
       hud.lon.textContent = `${Math.abs(lon).toFixed(2)}°${lon >= 0 ? "E" : "W"}`;
@@ -603,7 +665,7 @@ const globe = {};
 
   /* ---- actions ---- */
   $("btn-reset").addEventListener("click", () => {
-    closePanels(); globe.clearTarget(); setViewMode("3d");
+    closePanels(); globe.clearTarget(); stopFly(); setViewMode("3d");
     camera.flyTo({ destination: HOME(), orientation: { heading: 0, pitch: -CM.PI_OVER_TWO, roll: 0 }, duration: 2.2, complete: () => { rotating = !reduceMotion; } });
     log("RESET GLOBE · FULL EARTH");
   });
@@ -614,21 +676,24 @@ const globe = {};
     sv.lat = lat; sv.lon = lon;
     const h = Math.round(((heading % 360) + 360) % 360);
     const src = CONFIG.googleMapsApiKey
-      ? `https://www.google.com/maps/embed/v1/streetview?key=${encodeURIComponent(CONFIG.googleMapsApiKey)}&location=${lat.toFixed(6)},${lon.toFixed(6)}&heading=${h}&pitch=0&fov=90`
-      : `https://maps.google.com/maps?q=&layer=c&cbll=${lat.toFixed(6)},${lon.toFixed(6)}&cbp=11,${h},0,0,0&output=svembed`;
+      ? `https://www.google.com/maps/embed/v1/streetview?key=${encodeURIComponent(CONFIG.googleMapsApiKey)}&location=${lat.toFixed(6)},${lon.toFixed(6)}&heading=${h}&pitch=0&fov=90&language=en`
+      : `https://maps.google.com/maps?q=&layer=c&cbll=${lat.toFixed(6)},${lon.toFixed(6)}&cbp=11,${h},0,0,0&output=svembed&hl=en`;
     $("sv-frame").src = src;
     $("sv-open").href = `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat.toFixed(6)},${lon.toFixed(6)}&heading=${h}`;
     $("sv-title").textContent = title || `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
-    $("sv-sub").textContent = "Drag to look around, click the arrows to walk. Double-click anywhere on the globe to drop in there.";
+    $("sv-sub").textContent = "Drag to look around, click the arrows to walk. PICK ANOTHER SPOT arms one click on the globe; double-click works any time.";
     openPanel("street"); pauseRotation();
     log(`STREET LEVEL · ${(title || "DROP-IN").toUpperCase()}`);
   };
   $("sv-fly").addEventListener("click", () => camera.flyTo({ destination: C3.fromDegrees(sv.lon, sv.lat - 0.004, 420), orientation: { heading: 0, pitch: CM.toRadians(-45), roll: 0 }, duration: 2.5 }));
-  $("btn-street").addEventListener("click", () => {
-    const { lat, lon } = globe.viewCentre();
-    if (camera.positionCartographic.height > 3e5) { log("ZOOM IN BELOW 300 KM, OR DOUBLE-CLICK A SPOT, FOR STREET LEVEL"); }
-    globe.openStreetView(lat, lon, CM.toDegrees(camera.heading));
-  });
+  let svPick = false;
+  function setSvPick(on) {
+    svPick = on; $("btn-street").classList.toggle("on", on); scene.canvas.style.cursor = on ? "crosshair" : "grab";
+    if (on) { pauseRotation(); log("STREET VIEW · CLICK THE SPOT ON THE GLOBE YOU WANT TO STAND ON"); }
+  }
+  globe.setSvPick = setSvPick;
+  $("btn-street").addEventListener("click", () => setSvPick(!svPick));
+  $("sv-pick").addEventListener("click", () => { closePanels(); setSvPick(true); });
   $("target-street").addEventListener("click", () => {
     const sel = state.selected; if (!sel) return;
     const pos = livePos(sel); globe.openStreetView(pos.lat, pos.lon, 0, T.title.textContent);
@@ -638,6 +703,145 @@ const globe = {};
     const carto = Cesium.Cartographic.fromCartesian(p);
     globe.openStreetView(CM.toDegrees(carto.latitude), CM.toDegrees(carto.longitude), CM.toDegrees(camera.heading));
   }, Cesium.ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
+
+  /* ---- cockpit instruments, briefing strip, WX clouds ---- */
+  const CH = Object.fromEntries(["title", "place", "wx", "signals", "news", "news-src", "spd", "spd-u", "hdg", "alt", "alt-u", "wx-toggle", "next", "exit"].map((k) => [k, $(`ch-${k}`)]));
+  const ckRoot = $("cockpit-hud");
+  const WMO = { 0: "CLEAR", 1: "MAINLY CLEAR", 2: "PARTLY CLOUDY", 3: "OVERCAST", 45: "FOG", 48: "RIME FOG", 51: "DRIZZLE", 53: "DRIZZLE", 55: "DRIZZLE", 56: "FREEZING DRIZZLE", 57: "FREEZING DRIZZLE", 61: "RAIN", 63: "RAIN", 65: "HEAVY RAIN", 66: "FREEZING RAIN", 67: "FREEZING RAIN", 71: "SNOW", 73: "SNOW", 75: "HEAVY SNOW", 77: "SNOW GRAINS", 80: "SHOWERS", 81: "SHOWERS", 82: "VIOLENT SHOWERS", 85: "SNOW SHOWERS", 86: "SNOW SHOWERS", 95: "THUNDERSTORM", 96: "THUNDERSTORM", 99: "THUNDERSTORM" };
+  const clouds = scene.primitives.add(new Cesium.CloudCollection({ noiseDetail: 16 }));
+  clouds.show = false;
+  let briefing = { key: "", t: 0, wx: null }, wxOn = false, lastBriefCheck = 0;
+  function enterCockpitHud(sel) { ckRoot.hidden = false; CH.title.textContent = T.title.textContent; CH["spd-u"].textContent = sel.type === "sat" ? "KM/S" : "KT"; CH["alt-u"].textContent = sel.type === "sat" ? "KM" : "FT"; briefing.key = ""; refreshBriefing(sel); }
+  function exitCockpitHud() { ckRoot.hidden = true; clouds.removeAll(); clouds.show = false; wxOn = false; CH["wx-toggle"].classList.remove("on"); }
+  function updateCockpitHud(sel, pos, h) {
+    if (sel.type === "plane") { CH.spd.textContent = fmtInt(sel.p.v * 1.944); CH.alt.textContent = fmtInt(pos.alt * 3.281); }
+    else { const g = satGeo(sel.s) || sel.s.geo || {}; CH.spd.textContent = (g.speed || 0).toFixed(2); CH.alt.textContent = fmtInt((pos.alt || 0) / 1000); }
+    CH.hdg.textContent = pad(Math.round(((CM.toDegrees(h) % 360) + 360) % 360), 3);
+    const now = Date.now(); if (now - lastBriefCheck > 4000) { lastBriefCheck = now; refreshBriefing(sel); }
+  }
+  async function refreshBriefing(sel) {
+    const pos = livePos(sel); if (!pos) return;
+    const key = `${pos.lat.toFixed(1)},${pos.lon.toFixed(1)}`;
+    if (briefing.key === key && Date.now() - briefing.t < 300_000) return;
+    briefing = { key, t: Date.now(), wx: null };
+    const nAir = state.planes.filter((p) => p !== sel.p && haversine(pos.lat, pos.lon, p.lat, p.lon) < 250).length;
+    const nCam = state.cams.filter((c) => haversine(pos.lat, pos.lon, c.la, c.lo) < 250).length;
+    CH.signals.textContent = `${nAir} AIRCRAFT · ${nCam} CAMERAS WITHIN 250 KM`;
+    CH.place.textContent = "LOCATING…"; CH.wx.textContent = "—"; CH.news.innerHTML = ""; CH["news-src"].textContent = "";
+    let place = "";
+    try { const j = await fetch(`https://photon.komoot.io/reverse?lat=${pos.lat.toFixed(4)}&lon=${pos.lon.toFixed(4)}&lang=en`).then((r) => r.json()); const p = j.features?.[0]?.properties || {}; place = [p.city || p.town || p.village || p.name || p.county || p.state, p.country].filter(Boolean).join(", "); } catch {}
+    if (briefing.key !== key) return;
+    CH.place.textContent = place ? place.toUpperCase() : `OPEN WATER / REMOTE · ${pos.lat.toFixed(2)}, ${pos.lon.toFixed(2)}`;
+    try {
+      const w = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${pos.lat.toFixed(3)}&longitude=${pos.lon.toFixed(3)}&current=temperature_2m,wind_speed_10m,wind_direction_10m,cloud_cover,weather_code,visibility&wind_speed_unit=kn`).then((r) => r.json());
+      if (briefing.key !== key) return;
+      const cur = w.current; briefing.wx = cur;
+      CH.wx.innerHTML = `${WMO[cur.weather_code] || "—"} · ${Math.round(cur.temperature_2m)}°C · WIND ${pad(Math.round(cur.wind_direction_10m), 3)}° / ${Math.round(cur.wind_speed_10m)} KT · CLOUD ${cur.cloud_cover}% · VIS ${Math.round((cur.visibility || 0) / 1000)} KM · <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a>`;
+      if (wxOn) buildClouds(sel);
+    } catch { CH.wx.textContent = "WEATHER UNAVAILABLE"; }
+    const q = place ? place.split(",")[0] : "";
+    if (q) {
+      try { const n = await fetch(`/api/news?q=${encodeURIComponent(q)}`).then((r) => r.json()); if (briefing.key !== key) return;
+        CH.news.innerHTML = (n.items || []).slice(0, 4).map((i) => `<li><a href="${esc(i.url)}" target="_blank" rel="noopener">${esc(i.title)}</a></li>`).join("") || "<li>No regional headlines right now</li>";
+        CH["news-src"].textContent = n.source && n.source !== "none" ? `· ${n.source}` : "";
+      } catch { CH.news.innerHTML = "<li>Headlines unavailable</li>"; }
+    } else CH.news.innerHTML = "<li>No populated place below</li>";
+  }
+  function buildClouds(sel) {
+    clouds.removeAll(); const cur = briefing.wx; const pos = livePos(sel); if (!cur || !pos) return;
+    const cover = Math.max(0.08, cur.cloud_cover / 100), n = Math.round(8 + cover * 36);
+    const base = sel.type === "sat" ? 2500 : Math.min(Math.max(pos.alt * 0.55, 700), 3200);
+    for (let i = 0; i < n; i++) {
+      const r = (0.02 + Math.random() * 0.22) * (sel.type === "sat" ? 6 : 1), a = Math.random() * Math.PI * 2;
+      clouds.add({ position: C3.fromDegrees(pos.lon + Math.cos(a) * r, pos.lat + Math.sin(a) * r * 0.7, base + Math.random() * 1400), scale: new Cesium.Cartesian2(2200 + Math.random() * 4500, 800 + Math.random() * 1400), maximumSize: new C3(40, 16, 40), slice: 0.32 + Math.random() * 0.2, brightness: 0.85 + Math.random() * 0.15 });
+    }
+    clouds.show = true; log(`WX · ${cur.cloud_cover}% CLOUD · ${n} CELLS RENDERED FROM OBSERVATIONS`);
+  }
+  CH["wx-toggle"].addEventListener("click", () => { wxOn = !wxOn; CH["wx-toggle"].classList.toggle("on", wxOn); if (wxOn && cockpit) { if (briefing.wx) buildClouds(cockpit.sel); else log("WX · WAITING FOR OBSERVATIONS"); } else { clouds.removeAll(); clouds.show = false; } });
+  CH.exit.addEventListener("click", () => stopFollow());
+  CH.next.addEventListener("click", () => {
+    const sel = state.selected; if (!sel) return;
+    if (sel.type === "sat") { globe.selectSat(rand(state.sats), false); T.cockpit.click(); return; }
+    const pos = livePos(sel), now = Date.now();
+    const near = state.planes.filter((p) => p !== sel.p).map((p) => ({ p, d: haversine(pos.lat, pos.lon, planePos(p, now).lat, planePos(p, now).lon) })).filter((x) => x.d < 250).sort((a, b) => a.d - b.d);
+    const nxt = near[0]?.p || rand(state.planes.filter((p) => p.cs && p.alt > 2000)); if (!nxt) return;
+    globe.selectPlane(nxt, false); T.cockpit.click();
+  });
+
+  /* ---- detection overlay (screen-space boxes on every contact in frame) ---- */
+  const detectCanvas = $("detect"), dctx = detectCanvas.getContext("2d");
+  function drawDetections() {
+    const w = scene.canvas.clientWidth, hgt = scene.canvas.clientHeight;
+    if (detectCanvas.width !== w || detectCanvas.height !== hgt) { detectCanvas.width = w; detectCanvas.height = hgt; }
+    dctx.clearRect(0, 0, w, hgt);
+    const height = camera.positionCartographic.height; if (height > 5e6) return;
+    const centre = globe.viewCentre(); const span = Math.min(40, Math.max(0.05, height / 45000));
+    const occ = new Cesium.EllipsoidalOccluder(Cesium.Ellipsoid.WGS84, camera.positionWC);
+    dctx.font = "500 10px 'JetBrains Mono', monospace"; dctx.lineWidth = 1; let drawn = 0; const MAX = 240;
+    const box = (pos, label, color, size) => {
+      if (!occ.isPointVisible(pos)) return;
+      const win = Cesium.SceneTransforms.wgs84ToWindowCoordinates(scene, pos); if (!win || win.x < 0 || win.y < 0 || win.x > w || win.y > hgt) return;
+      drawn++; dctx.strokeStyle = color; dctx.strokeRect(win.x - size, win.y - size, size * 2, size * 2);
+      dctx.fillStyle = color; dctx.fillText(label, win.x + size + 3, win.y - size + 9);
+    };
+    if (layerState.planes) for (const p of state.planes) { if (drawn > MAX) break; if (Math.abs(p.lat - centre.lat) > span || Math.abs(p.lon - centre.lon) > span * 1.6) continue; const q = planePos(p); box(C3.fromDegrees(q.lon, q.lat, q.alt), p.cs || p.icao.toUpperCase(), "#22e6e6", 10); }
+    if (layerState.cams && height < 4e5) for (const c of state.cams) { if (drawn > MAX) break; if (Math.abs(c.la - centre.lat) > span || Math.abs(c.lo - centre.lon) > span * 1.6) continue; box(C3.fromDegrees(c.lo, c.la, 30), `CAM ${String(c.k).slice(0, 10).toUpperCase()}`, "#ffb800", 7); }
+    if (layerState.quakes) for (const q of state.quakes) { if (Math.abs(q.lat - centre.lat) > span * 2 || Math.abs(q.lon - centre.lon) > span * 3) continue; box(C3.fromDegrees(q.lon, q.lat, 1000), `M${q.mag.toFixed(1)}`, "#ff6b7a", 9); }
+    if (layerState.sats) for (const sat of state.sats) { const g = sat.geo; if (!g) continue; box(C3.fromDegrees(g.lon, g.lat, g.alt), sat.name.slice(0, 14), "#ffffff", 8); }
+    globe.detectCount = drawn;
+    dctx.fillStyle = "#22e6e6"; dctx.fillText(`DETECT · ${drawn} CONTACTS IN FRAME`, w / 2 - 90, 92);
+  }
+
+  /* ---- route tool: waypoints → OSRM road/foot route → flythrough ---- */
+  const route = { drawing: false, pts: [], coords: [], entity: null, markers: [], fly: null };
+  const routeStatus = $("route-status");
+  const bearingDeg = (a, b) => { const y = Math.sin(CM.toRadians(b[0] - a[0])) * Math.cos(CM.toRadians(b[1])), x = Math.cos(CM.toRadians(a[1])) * Math.sin(CM.toRadians(b[1])) - Math.sin(CM.toRadians(a[1])) * Math.cos(CM.toRadians(b[1])) * Math.cos(CM.toRadians(b[0] - a[0])); return Math.atan2(y, x); };
+  function setRouteDrawing(on) { route.drawing = on; $("btn-route").classList.toggle("on", on); scene.canvas.style.cursor = on ? "crosshair" : "grab"; log(on ? "ROUTE · CLICK WAYPOINTS ON THE GLOBE" : "ROUTE · DRAWING OFF"); if (on) pauseRotation(); }
+  function addWaypointAt(lat, lon) {
+    route.pts.push([lon, lat]);
+    route.markers.push(viewer.entities.add({ position: C3.fromDegrees(lon, lat), point: { pixelSize: 9, color: AMBER, outlineColor: Cesium.Color.BLACK, outlineWidth: 1, disableDepthTestDistance: Number.POSITIVE_INFINITY }, label: { text: String(route.pts.length), font: "600 10px 'JetBrains Mono', monospace", fillColor: Cesium.Color.BLACK, pixelOffset: new Cesium.Cartesian2(0, -14), style: Cesium.LabelStyle.FILL, showBackground: true, backgroundColor: AMBER, disableDepthTestDistance: Number.POSITIVE_INFINITY } }));
+    if (route.pts.length >= 2) buildRoute(); else log("ROUTE · WAYPOINT 1 SET · CLICK THE NEXT ONE");
+  }
+  function addWaypoint(windowPos) { const p = camera.pickEllipsoid(windowPos); if (!p) return; const c = Cesium.Cartographic.fromCartesian(p); addWaypointAt(CM.toDegrees(c.latitude), CM.toDegrees(c.longitude)); }
+  globe.addRoutePoint = addWaypointAt;
+  async function buildRoute() {
+    const prof = $("route-mode").value; let coords = route.pts, dist = 0, dur = 0, routed = false;
+    routeStatus.textContent = "ROUTING…";
+    try {
+      const q = route.pts.map((p) => `${p[0].toFixed(5)},${p[1].toFixed(5)}`).join(";");
+      const j = await fetch(`https://routing.openstreetmap.de/routed-${prof}/route/v1/driving/${q}?overview=full&geometries=geojson`).then((r) => r.json());
+      if (j.routes?.[0]) { coords = j.routes[0].geometry.coordinates; dist = j.routes[0].distance; dur = j.routes[0].duration; routed = true; }
+    } catch {}
+    if (!routed) for (let i = 1; i < coords.length; i++) dist += haversine(coords[i - 1][1], coords[i - 1][0], coords[i][1], coords[i][0]) * 1000;
+    route.coords = coords;
+    if (route.entity) viewer.entities.remove(route.entity);
+    route.entity = viewer.entities.add({ polyline: { positions: C3.fromDegreesArray(coords.flat()), width: 6, clampToGround: true, material: new Cesium.PolylineGlowMaterialProperty({ glowPower: 0.22, taperPower: 1, color: AMBER }) } });
+    routeStatus.textContent = `${(dist / 1000).toFixed(1)} KM${dur ? ` · ${Math.round(dur / 60)} MIN` : ""} · ${routed ? "OSM ROADS" : "DIRECT"}`;
+    log(`ROUTE · ${(dist / 1000).toFixed(1)} KM · ${routed ? prof.toUpperCase() + " · OSRM ON OPENSTREETMAP" : "DIRECT LINE (ROUTER UNAVAILABLE)"}`);
+  }
+  function clearRoute() { stopFly(); route.pts = []; route.coords = []; if (route.entity) viewer.entities.remove(route.entity); route.entity = null; route.markers.forEach((m) => viewer.entities.remove(m)); route.markers = []; routeStatus.textContent = ""; }
+  function startFly() {
+    if (route.coords.length < 2) return log("ROUTE · SET AT LEAST TWO WAYPOINTS FIRST");
+    stopFollow(true); closePanels(); setRouteDrawing(false);
+    const pts = route.coords, cum = [0]; for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + haversine(pts[i - 1][1], pts[i - 1][0], pts[i][1], pts[i][0]) * 1000);
+    const prof = $("route-mode").value; const speed = prof === "foot" ? 45 : prof === "bike" ? 90 : 220; const height = prof === "foot" ? 40 : prof === "bike" ? 60 : 110;
+    route.fly = { pts, cum, total: cum[cum.length - 1], t0: performance.now(), speed, height };
+    scene.screenSpaceCameraController.enableInputs = false; $("btn-flythrough").textContent = "STOP"; hud.mode.textContent = "FLYTHROUGH";
+    log(`FLYTHROUGH · ${(route.fly.total / 1000).toFixed(1)} KM · ${prof.toUpperCase()}`);
+  }
+  function stopFly() { if (!route.fly) return; route.fly = null; scene.screenSpaceCameraController.enableInputs = true; $("btn-flythrough").textContent = "FLYTHROUGH"; hud.mode.textContent = state.selected ? "TRACK" : "ORBIT"; }
+  globe.stopFly = stopFly;
+  function posAlong(f, d) { const { pts, cum } = f; if (d >= f.total) return pts[pts.length - 1]; let i = 1; while (cum[i] < d) i++; const t = (d - cum[i - 1]) / Math.max(1e-6, cum[i] - cum[i - 1]); return [pts[i - 1][0] + (pts[i][0] - pts[i - 1][0]) * t, pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * t]; }
+  function flyStep() {
+    const f = route.fly; const d = ((performance.now() - f.t0) / 1000) * f.speed;
+    if (d >= f.total + 40) { stopFly(); log("FLYTHROUGH · ARRIVED"); return; }
+    const a = posAlong(f, d), b = posAlong(f, Math.min(f.total, d + 80));
+    camera.setView({ destination: C3.fromDegrees(a[0], a[1], f.height), orientation: { heading: (a[0] === b[0] && a[1] === b[1]) ? camera.heading : bearingDeg(a, b), pitch: CM.toRadians(-16), roll: 0 } });
+  }
+  $("btn-route").addEventListener("click", () => setRouteDrawing(!route.drawing));
+  $("btn-flythrough").addEventListener("click", () => (route.fly ? stopFly() : startFly()));
+  $("btn-route-clear").addEventListener("click", () => { clearRoute(); setRouteDrawing(false); log("ROUTE CLEARED"); });
+  $("route-mode").addEventListener("change", () => { if (route.pts.length >= 2) buildRoute(); });
   globe.viewCentre = () => {
     const c = camera.pickEllipsoid(new Cesium.Cartesian2(scene.canvas.clientWidth / 2, scene.canvas.clientHeight / 2));
     const carto = c ? Cesium.Cartographic.fromCartesian(c) : camera.positionCartographic;

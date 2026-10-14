@@ -22,6 +22,7 @@
 <body>
   <!-- ====== GLOBE ====== -->
   <div id="cesium" aria-label="Live 3D globe"></div>
+  <canvas id="detect" class="detect" hidden aria-hidden="true"></canvas>
   <div id="globe-loading" class="loading"><span class="loading-ring"></span>ACQUIRING SATELLITE LINK</div>
   <div id="globe-fallback" class="fallback" hidden><p>WEBGL UNAVAILABLE</p></div>
   <div class="scanlines" aria-hidden="true"></div>
@@ -121,6 +122,16 @@
       <button type="button" data-layer="radar">RADAR</button>
       <button type="button" data-layer="lights" class="on">NIGHT LIGHTS</button>
       <button type="button" data-layer="cables">CABLES</button>
+      <button type="button" data-layer="detect">DETECT</button>
+      <button type="button" data-layer="traffic" data-tomtom hidden>TRAFFIC</button>
+    </div>
+    <div class="ctl-group">
+      <span class="ctl-label">ROUTE</span>
+      <select id="route-mode" aria-label="Route mode"><option value="foot">WALK</option><option value="bike">BIKE</option><option value="car">DRIVE</option></select>
+      <button type="button" id="btn-route">DRAW</button>
+      <button type="button" id="btn-flythrough">FLYTHROUGH</button>
+      <button type="button" id="btn-route-clear">CLEAR</button>
+      <span id="route-status" class="route-status"></span>
     </div>
     <div class="ctl-group">
       <button type="button" id="btn-track">TRACK RANDOM</button>
@@ -134,6 +145,25 @@
   </div>
 
   <div id="cesium-credits" class="credits"></div>
+
+  <!-- ====== COCKPIT INSTRUMENTS ====== -->
+  <div id="cockpit-hud" class="cockpit" hidden aria-hidden="true">
+    <div class="ck-top"><span>FIRST PERSON</span><b id="ch-title">—</b></div>
+    <div class="ck-horizon"></div>
+    <div class="ck-reticle"></div>
+    <div class="ck-strip">
+      <div class="ck-row"><span>POSITION</span><b id="ch-place">—</b></div>
+      <div class="ck-row"><span>WEATHER</span><b id="ch-wx">—</b></div>
+      <div class="ck-row"><span>SIGNALS</span><b id="ch-signals">—</b></div>
+      <div class="ck-row ck-news"><span>HEADLINES <em id="ch-news-src"></em></span><ul id="ch-news"></ul></div>
+    </div>
+    <div class="ck-numbers">
+      <div><small>SPD</small><b id="ch-spd">—</b><small id="ch-spd-u">KT</small></div>
+      <div><small>HDG</small><b id="ch-hdg">—</b><small>DEG</small></div>
+      <div><small>ALT</small><b id="ch-alt">—</b><small id="ch-alt-u">FT</small></div>
+    </div>
+    <div class="ck-actions"><button type="button" id="ch-wx-toggle">WX CLOUDS</button><button type="button" id="ch-next">NEXT CONTACT</button><button type="button" id="ch-exit">EXIT COCKPIT</button></div>
+  </div>
 
   <!-- ====== TARGET WINDOW ====== -->
   <aside class="panel panel-target" id="panel-target" hidden>
@@ -169,9 +199,10 @@
     <header class="panel-head"><span class="panel-tag">// STREET LEVEL · GOOGLE STREET VIEW</span><button type="button" class="panel-close" data-close>CLOSE</button></header>
     <div class="panel-body">
       <h2 id="sv-title">Street view</h2>
-      <p class="panel-sub" id="sv-sub">Drag to look around, click the arrows to walk. Double-click anywhere on the globe to drop in there.</p>
+      <p class="panel-sub" id="sv-sub">Drag to look around, click the arrows to walk. PICK ANOTHER SPOT arms one click on the globe; double-click works any time.</p>
       <div class="sv-wrap"><iframe id="sv-frame" class="sv-frame" title="Google Street View" allow="accelerometer; gyroscope" referrerpolicy="no-referrer-when-downgrade" loading="lazy"></iframe></div>
       <div class="cta-row">
+        <button type="button" class="btn btn-primary btn-sm" id="sv-pick">PICK ANOTHER SPOT</button>
         <a class="btn btn-ghost btn-sm" id="sv-open" href="#" target="_blank" rel="noopener">OPEN IN GOOGLE MAPS</a>
         <button type="button" class="btn btn-ghost btn-sm" id="sv-fly">FLY GLOBE HERE</button>
       </div>
@@ -186,15 +217,16 @@
       <h2>What the Eye sees</h2>
       <p class="panel-sub">It looks like a forbidden cockpit. It is also a memecoin. Both halves are the magic. Everything below is real, public and live.</p>
       <ul class="cards">
-        <li><span class="idx">01</span><h3>Live aircraft</h3><p>Thousands of real ADS-B transponders from the OpenSky Network, refreshed every minute and dead-reckoned in between. Click one, follow it, or ride in the cockpit.</p></li>
+        <li><span class="idx">01</span><h3>Live aircraft and a real cockpit</h3><p>Thousands of real ADS-B transponders from the OpenSky Network, refreshed every minute and dead-reckoned in between. Click one and see what it is: type, registration, operator, route and a photo of the actual airframe from Planespotters.net. Follow it, or ride in the cockpit: speed, heading and altitude readouts, a briefing strip with the place below you, live local weather, nearby signals and regional headlines, and opt-in WX clouds built from actual observations.</p></li>
         <li><span class="idx">02</span><h3>23,000+ public cameras</h3><p>Traffic and weather cameras across North America (Florida, Georgia, Pennsylvania, Connecticut, Arizona, Nevada, Idaho, Louisiana, Alaska, Oregon, Austin, Ontario, Alberta, British Columbia, Yukon, Calgary), Europe (London, Norway, Finland, Estonia, Tallinn and 400 alpine weather cams in Austria, Germany, Italy and Switzerland) and Asia-Pacific (Hong Kong, Singapore, Sydney, New Zealand). Open one, fly down, watch it refresh. With a free Windy key the WEBCAMS HERE button pulls in tens of thousands more on every continent, Africa and Asia included.</p></li>
         <li><span class="idx">03</span><h3>Satellites in orbit</h3><p>The ISS, Tiangong, Hubble and the brightest objects in orbit, propagated live from CelesTrak orbital elements.</p></li>
         <li><span class="idx">04</span><h3>Earthquakes, radar, cables</h3><p>USGS earthquakes from the last 24 hours, RainViewer weather radar and the global submarine cable map, one switch each.</p></li>
         <li><span class="idx">05</span><h3>Photoreal globe, day and night</h3><p>Real satellite imagery with borders and place names, a live day-night terminator and VIIRS city lights on the dark side. 3D, top-down or flat map. Add a free Cesium ion token for terrain and 3D buildings.</p></li>
         <li><span class="idx">06</span><h3>Reskin reality</h3><p>Electro-optical, FLIR thermal, night vision, CRT. Your portfolio imaged in every spectrum. Still red in all of them.</p></li>
-        <li><span class="idx">07</span><h3>Street level</h3><p>Double-click any spot on the globe, or hit STREET VIEW on a camera, to drop into Google Street View and walk the streets from orbit.</p></li>
-        <li><span class="idx">08</span><h3>Search and share</h3><p>Type coordinates or a place name to fly there. Hit SHARE and the camera, layers and tracked target serialize into a link.</p></li>
-        <li><span class="idx">09</span><h3>No bag left behind</h3><p>Every whale, every rug, every jeet. Tracked from 560 km up. $EYE is the ticker of the watchers.</p></li>
+        <li><span class="idx">07</span><h3>Routes and flythroughs</h3><p>Switch on DRAW, click waypoints on the globe and the route snaps to real roads or footpaths (OSRM on OpenStreetMap). FLYTHROUGH then flies the camera along it at street height. DETECT paints screen-space boxes and IDs on every contact in frame.</p></li>
+        <li><span class="idx">08</span><h3>Street level</h3><p>Hit STREET VIEW and click the spot you want to stand on, double-click anywhere, or open it from a camera's window: Google Street View opens right there and you can walk the streets from orbit.</p></li>
+        <li><span class="idx">09</span><h3>Search and share</h3><p>Type coordinates or a place name to fly there. Hit SHARE and the camera, layers and tracked target serialize into a link.</p></li>
+        <li><span class="idx">10</span><h3>No bag left behind</h3><p>Every whale, every rug, every jeet. Tracked from 560 km up. $EYE is the ticker of the watchers.</p></li>
       </ul>
     </div>
   </section>
@@ -291,7 +323,7 @@
         <a class="btn btn-ghost" data-link="buy" href="#" target="_blank" rel="noopener">BUY $EYE</a>
       </div>
       <p class="fine">$EYE is a memecoin created for entertainment. It has no intrinsic value, no utility and no expectation of financial return. Nothing here is financial advice. Never invest more than you can afford to lose. Not affiliated with any government, satellite operator or the open-source God's Eye View project.</p>
-      <p class="fine">Data: aircraft from the <a href="https://opensky-network.org" target="_blank" rel="noopener">OpenSky Network</a> (adsb.lol fallback); satellites from <a href="https://celestrak.org" target="_blank" rel="noopener">CelesTrak</a>; earthquakes from USGS; radar from RainViewer; cables from TeleGeography; cameras from TfL Open Data, HK Transport Department (data.gov.hk), LTA via data.gov.sg, Live Traffic NSW (CC BY 4.0), NZTA, foto-webcam.eu, City of Austin, Oregon DOT, FDOT FL511, CTDOT, Idaho 511, Yukon 511, Georgia 511, PennDOT 511PA, ADOT, NDOT, Louisiana 511, Alaska 511, Ontario 511 (OGL Ontario), Alberta 511, DriveBC (OGL BC), Open Calgary, Statens vegvesen (NLOD 2.0), Fintraffic Digitraffic (CC BY 4.0), Transpordiamet and the City of Tallinn; optional worldwide webcams by Windy.com; imagery by Esri and partners, NASA GIBS; globe by CesiumJS.</p>
+      <p class="fine">Data: aircraft from the <a href="https://opensky-network.org" target="_blank" rel="noopener">OpenSky Network</a> (adsb.lol fallback), aircraft identities and routes from <a href="https://www.adsbdb.com" target="_blank" rel="noopener">adsbdb</a>, aircraft photos © their photographers via <a href="https://www.planespotters.net" target="_blank" rel="noopener">Planespotters.net</a>; satellites from <a href="https://celestrak.org" target="_blank" rel="noopener">CelesTrak</a>; earthquakes from USGS; radar from RainViewer; cables from TeleGeography; cameras from TfL Open Data, HK Transport Department (data.gov.hk), LTA via data.gov.sg, Live Traffic NSW (CC BY 4.0), NZTA, foto-webcam.eu, City of Austin, Oregon DOT, FDOT FL511, CTDOT, Idaho 511, Yukon 511, Georgia 511, PennDOT 511PA, ADOT, NDOT, Louisiana 511, Alaska 511, Ontario 511 (OGL Ontario), Alberta 511, DriveBC (OGL BC), Open Calgary, Statens vegvesen (NLOD 2.0), Fintraffic Digitraffic (CC BY 4.0), Transpordiamet and the City of Tallinn; optional worldwide webcams by Windy.com; imagery by Esri and partners, NASA GIBS; routing by OSRM on the FOSSGIS servers (OpenStreetMap, ODbL); weather by <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> (CC BY 4.0); place names by Photon (komoot); headlines via the GDELT Project with Google News RSS fallback; traffic flow data © TomTom when a key is configured; globe by CesiumJS.</p>
     </div>
   </section>
 

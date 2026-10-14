@@ -53,23 +53,35 @@ dockToggle.addEventListener("click", () => { const open = dock.classList.toggle(
 const mission = $("mission"), missionToggle = $("mission-toggle");
 function setMission(collapsed) { mission.classList.toggle("collapsed", collapsed); missionToggle.textContent = collapsed ? "SHOW" : "HIDE"; }
 missionToggle.addEventListener("click", () => setMission(!mission.classList.contains("collapsed")));
-if (window.innerWidth < 1080 || window.innerHeight < 640) setMission(true);
+if (window.innerWidth < 1500 || window.innerHeight < 700) setMission(true);
 
 /* ---------- windows ---------- */
-const panels = [...document.querySelectorAll(".panel")];
+const panels = [...document.querySelectorAll(".panel")].filter((p) => p.id !== "panel-hunt"); // the hunt panel is docked, never part of the one-at-a-time group
+const huntPanel = $("panel-hunt");
+function setHuntCollapsed(collapsed) {
+  huntPanel.classList.toggle("collapsed", collapsed);
+  $("hunt-toggle").textContent = collapsed ? "SHOW" : "HIDE";
+  dock.querySelector('[data-panel="hunt"]')?.classList.toggle("active", !collapsed);
+  try { localStorage.setItem("eye-hunt-collapsed", collapsed ? "1" : "0"); } catch {}
+}
 function openPanel(name) {
+  if (name === "hunt") { setHuntCollapsed(false); huntState(); dock.classList.remove("open"); return; }
   panels.forEach((p) => { p.hidden = p.id !== `panel-${name}`; });
   dock.querySelectorAll("button").forEach((b) => b.classList.toggle("active", b.dataset.panel === name));
   dock.classList.remove("open");
   if (name === "cameras") buildWall();
   if (name === "flights") buildBoard();
-  if (name === "hunt") huntState();
   if (window.innerWidth < 820) setMission(true);
 }
 function closePanels() { panels.forEach((p) => (p.hidden = true)); dock.querySelectorAll("button").forEach((b) => b.classList.remove("active")); }
 dock.querySelectorAll("[data-panel]").forEach((b) => b.addEventListener("click", () => {
+  if (b.dataset.panel === "hunt") { setHuntCollapsed(!huntPanel.classList.contains("collapsed")); dock.classList.remove("open"); return; }
   const already = !$(`panel-${b.dataset.panel}`).hidden; already ? closePanels() : openPanel(b.dataset.panel);
 }));
+$("hunt-toggle").addEventListener("click", (e) => { e.stopPropagation(); setHuntCollapsed(!huntPanel.classList.contains("collapsed")); });
+huntPanel.querySelector(".panel-head").addEventListener("click", () => setHuntCollapsed(!huntPanel.classList.contains("collapsed")));
+(() => { let saved = null; try { saved = localStorage.getItem("eye-hunt-collapsed"); } catch {}
+  setHuntCollapsed(saved != null ? saved === "1" : (window.innerWidth < 1100 || window.innerHeight < 640)); })();
 document.querySelectorAll("[data-close]").forEach((b) => b.addEventListener("click", closePanels));
 document.querySelectorAll("[data-panel-open]").forEach((b) => b.addEventListener("click", () => openPanel(b.dataset.panelOpen)));
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") { closePanels(); globe.clearTarget?.(); globe.stopFly?.(); } });
@@ -241,6 +253,7 @@ function renderHunt() {
   $("hunt-reward").textContent = st.payout?.sol ?? "—"; $("hunt-max").textContent = st.payout?.maxWinners ?? "—"; $("hunt-paid").textContent = st.payout?.paid ?? 0;
   $("hunt-lb").innerHTML = (st.leaderboard || []).map((r, i) => `<tr${r.wallet === hunt.wallet ? ' style="color:#ffb800"' : ""}><td>${i + 1}</td><td class="dim">${shortW(r.wallet)}</td><td>${r.found}/${total}</td><td>${r.paid ? "PAID" : r.finished ? "COMPLETE" : "HUNTING"}</td></tr>`).join("") || `<tr><td colspan="4" class="dim">No operators yet. Be the first.</td></tr>`;
   hud.eyes.textContent = hunt.wallet ? `${mine.length}/${total}` : "—";
+  $("hunt-mini").textContent = !st.armed ? "SOON" : hunt.wallet ? `${mine.length}/${total}` : `${total} HIDDEN`;
   $("hunt-mobile").hidden = !(isMobile && !walletProvider() && !hunt.wallet);
 }
 async function connectWallet() {
@@ -291,7 +304,7 @@ function showHint() {
 function startHints() { if (hunt.hintTimer) return; loadHints(); setTimeout(showHint, 60_000); hunt.hintTimer = setInterval(() => { loadHints(); showHint(); }, 240_000); }
 $("hint-close").addEventListener("click", () => ($("hint-toast").hidden = true));
 huntState(); startHints();
-setInterval(() => huntState(), 45_000);
+setInterval(() => { if (!huntPanel.classList.contains("collapsed")) huntState(); }, 30_000);
 
 /* =========================================================
    GLOBE (CesiumJS)

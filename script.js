@@ -608,13 +608,25 @@ const globe = {};
     else if (id.type === "sat") globe.selectSat(id.s); else if (id.type === "quake") globe.selectQuake(id.q);
     else if (id.properties?.name) log(`CABLE · ${String(id.name || id.properties.name).toUpperCase()}`);
   }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
-  handler.setInputAction((m) => { const p = scene.pick(m.endPosition); scene.canvas.style.cursor = p?.id?.type ? "pointer" : "grab"; }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
+  // Hover cursor: picking forces an extra render, so throttle it and skip it entirely while a button is held.
+  let dragging = false, lastHover = 0;
+  scene.canvas.addEventListener("pointerdown", () => { dragging = true; }, { passive: true });
+  window.addEventListener("pointerup", () => { dragging = false; }, { passive: true });
+  window.addEventListener("pointercancel", () => { dragging = false; }, { passive: true });
+  scene.canvas.addEventListener("selectstart", (e) => e.preventDefault());
+  scene.canvas.addEventListener("dragstart", (e) => e.preventDefault());
+  handler.setInputAction((m) => {
+    if (dragging || svPick || route.drawing) return;
+    const now = performance.now(); if (now - lastHover < 120) return; lastHover = now;
+    const p = scene.pick(m.endPosition); scene.canvas.style.cursor = p?.id?.type ? "pointer" : "grab";
+  }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
 
   /* ---- auto-rotation + HUD ---- */
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   let idleAt = 0, rotating = !reduceMotion;
   function pauseRotation() { rotating = false; idleAt = Date.now(); }
   ["pointerdown", "wheel", "touchstart"].forEach((ev) => scene.canvas.addEventListener(ev, pauseRotation, { passive: true }));
+  scene.canvas.addEventListener("pointerdown", () => { const selx = window.getSelection?.(); if (selx && selx.rangeCount) selx.removeAllRanges(); document.activeElement?.blur?.(); }, { passive: true });
   scene.canvas.style.cursor = "grab";
   let lastHud = 0, flyUntil = 0;
   for (const m of ["flyTo", "flyToBoundingSphere"]) { const orig = camera[m].bind(camera); camera[m] = (a, b) => { const o = m === "flyTo" ? a : b; flyUntil = Date.now() + (((o && o.duration) ?? 3) * 1000) + 150; return orig(a, b); }; }

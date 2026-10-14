@@ -14,7 +14,7 @@
  */
 const OPENSKY_URL = "https://opensky-network.org/api/states/all";
 const TOKEN_URL = "https://auth.opensky-network.org/auth/realms/opensky-network/protocol/openid-connect/token";
-const MAX_ROWS = 8000;
+const MAX_ROWS = 10000;
 const TTL_MS = 60_000;
 const HUB_STALE_MS = 4 * 60_000;       // refresh a hub after this age
 const HUB_KEEP_S = 12 * 60;            // Redis TTL per hub
@@ -113,7 +113,7 @@ async function fromHubs(stats) {
   }
   const merged = new Map();
   for (const e of entries) if (e) for (const row of e.rows) { const prev = merged.get(row[0]); if (!prev || prev[9] < row[9]) merged.set(row[0], row); }
-  const rows = [...merged.values()].slice(0, MAX_ROWS);
+  const rows = [...merged.values()].sort((a, b) => ((b[1] ? 1 : 0) - (a[1] ? 1 : 0)) || b[4] - a[4]).slice(0, MAX_ROWS);
   const ages = entries.map((e) => (e ? Math.round((now - e.t) / 1000) : null));
   const covered = ages.filter((a) => a != null).length;
   if (stats) Object.assign(stats, { refreshed, covered, hubs: HUBS.length, errors: errors.slice(0, 5), oldestAgeS: Math.max(0, ...ages.filter((a) => a != null)) });

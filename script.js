@@ -308,10 +308,13 @@ const globe = {};
   const AMBER = Cesium.Color.fromCssColorString("#ffb800"), CYAN = Cesium.Color.fromCssColorString("#22e6e6"), RED = Cesium.Color.fromCssColorString("#ff6b7a"), WHITE = Cesium.Color.fromCssColorString("#e8feff");
   const camPoints = scene.primitives.add(new Cesium.PointPrimitiveCollection());
   const planes = scene.primitives.add(new Cesium.BillboardCollection({ scene }));
-  const satPoints = scene.primitives.add(new Cesium.PointPrimitiveCollection());
+  const satPoints = scene.primitives.add(new Cesium.BillboardCollection({ scene }));
   const satLabels = scene.primitives.add(new Cesium.LabelCollection({ scene }));
   const quakePoints = scene.primitives.add(new Cesium.PointPrimitiveCollection());
   let cablesDs = null;
+  const satSvg = (fill, size) => "data:image/svg+xml;utf8," + encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 32 32"><g fill="${fill}" stroke="#04171a" stroke-width="1" stroke-linejoin="round"><rect x="13" y="13" width="6" height="6" rx="1"/><rect x="2" y="12.5" width="9" height="7" rx="1"/><rect x="21" y="12.5" width="9" height="7" rx="1"/><path d="M11 16h2M19 16h2M16 11v-4M16 19v4" stroke="${fill}" stroke-width="1.6"/><circle cx="16" cy="5.5" r="2.2"/><path d="M16 23.5l-3 4h6z"/></g><g stroke="#04171a" stroke-width="0.8" opacity="0.7"><path d="M4.5 13v6M7 13v6M9 13v6M23.5 13v6M26 13v6M28.5 13v6"/></g></svg>`);
+  const SAT_IMG = satSvg("#22e6e6", 18), SAT_IMG_BIG = satSvg("#ffffff", 26);
   const PLANE_IMG = "data:image/svg+xml;utf8," + encodeURIComponent(
     `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><path d="M12 1.5 L13.6 8.5 L22.5 13 L22.5 15.2 L13.8 12.4 L13.3 18 L16.2 20.2 L16.2 22 L12 20.8 L7.8 22 L7.8 20.2 L10.7 18 L10.2 12.4 L1.5 15.2 L1.5 13 L10.4 8.5 Z" fill="#22e6e6" stroke="#04171a" stroke-width="0.8"/></svg>`);
   const layerState = { planes: true, cams: true, labels: true, sats: true, quakes: true, radar: false, lights: true, cables: false };
@@ -393,7 +396,8 @@ const globe = {};
   satsReady.then((sats) => {
     for (const s of sats) {
       const named = /ISS \(ZARYA\)|CSS \(TIANHE\)|HST/.test(s.name);
-      satPoints.add({ position: C3.ZERO, color: named ? WHITE : CYAN.withAlpha(0.9), pixelSize: named ? 7 : 4, outlineColor: Cesium.Color.BLACK.withAlpha(0.6), outlineWidth: 1, id: { type: "sat", s } });
+      satPoints.add({ position: C3.ZERO, image: named ? SAT_IMG_BIG : SAT_IMG, width: named ? 26 : 18, height: named ? 26 : 18,
+        scaleByDistance: new Cesium.NearFarScalar(1e6, 1.2, 4e7, 0.6), id: { type: "sat", s } });
       if (named) satLabels.add({ position: C3.ZERO, text: s.name.replace(/ \(.*\)/, ""), font: "500 11px 'JetBrains Mono', monospace", fillColor: WHITE, outlineColor: Cesium.Color.BLACK, outlineWidth: 3,
         style: Cesium.LabelStyle.FILL_AND_OUTLINE, pixelOffset: new Cesium.Cartesian2(10, -8), horizontalOrigin: Cesium.HorizontalOrigin.LEFT, id: { type: "sat", s } });
     }
@@ -453,6 +457,7 @@ const globe = {};
     state.selected = sel;
     panels.forEach((p) => (p.hidden = p !== T.panel)); dock.querySelectorAll("button").forEach((b) => b.classList.remove("active"));
     clearInterval(imgTimer); T.fig.hidden = true; T.open.hidden = true; T.follow.hidden = true; T.cockpit.hidden = true;
+    $("target-street").hidden = !(sel.type === "cam" || sel.type === "quake");
     hud.mode.textContent = follow ? "FOLLOW" : cockpit ? "COCKPIT" : "TRACK";
     if (sel.type === "cam") {
       const c = sel.cam, src = state.camSources[c.s];
@@ -603,6 +608,36 @@ const globe = {};
     log("RESET GLOBE · FULL EARTH");
   });
   $("btn-cam").addEventListener("click", () => state.cams.length && globe.selectCam(rand(state.cams)));
+  /* ---- Google Street View (keyless embed; uses the Embed API when a Google Maps key is configured) ---- */
+  const sv = { lat: 0, lon: 0 };
+  globe.openStreetView = (lat, lon, heading = 0, title) => {
+    sv.lat = lat; sv.lon = lon;
+    const h = Math.round(((heading % 360) + 360) % 360);
+    const src = CONFIG.googleMapsApiKey
+      ? `https://www.google.com/maps/embed/v1/streetview?key=${encodeURIComponent(CONFIG.googleMapsApiKey)}&location=${lat.toFixed(6)},${lon.toFixed(6)}&heading=${h}&pitch=0&fov=90`
+      : `https://maps.google.com/maps?q=&layer=c&cbll=${lat.toFixed(6)},${lon.toFixed(6)}&cbp=11,${h},0,0,0&output=svembed`;
+    $("sv-frame").src = src;
+    $("sv-open").href = `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat.toFixed(6)},${lon.toFixed(6)}&heading=${h}`;
+    $("sv-title").textContent = title || `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+    $("sv-sub").textContent = "Drag to look around, click the arrows to walk. Double-click anywhere on the globe to drop in there.";
+    openPanel("street"); pauseRotation();
+    log(`STREET LEVEL · ${(title || "DROP-IN").toUpperCase()}`);
+  };
+  $("sv-fly").addEventListener("click", () => camera.flyTo({ destination: C3.fromDegrees(sv.lon, sv.lat - 0.004, 420), orientation: { heading: 0, pitch: CM.toRadians(-45), roll: 0 }, duration: 2.5 }));
+  $("btn-street").addEventListener("click", () => {
+    const { lat, lon } = globe.viewCentre();
+    if (camera.positionCartographic.height > 3e5) { log("ZOOM IN BELOW 300 KM, OR DOUBLE-CLICK A SPOT, FOR STREET LEVEL"); }
+    globe.openStreetView(lat, lon, CM.toDegrees(camera.heading));
+  });
+  $("target-street").addEventListener("click", () => {
+    const sel = state.selected; if (!sel) return;
+    const pos = livePos(sel); globe.openStreetView(pos.lat, pos.lon, 0, T.title.textContent);
+  });
+  handler.setInputAction((m) => {
+    const p = camera.pickEllipsoid(m.position); if (!p) return;
+    const carto = Cesium.Cartographic.fromCartesian(p);
+    globe.openStreetView(CM.toDegrees(carto.latitude), CM.toDegrees(carto.longitude), CM.toDegrees(camera.heading));
+  }, Cesium.ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
   globe.viewCentre = () => {
     const c = camera.pickEllipsoid(new Cesium.Cartesian2(scene.canvas.clientWidth / 2, scene.canvas.clientHeight / 2));
     const carto = c ? Cesium.Cartographic.fromCartesian(c) : camera.positionCartographic;

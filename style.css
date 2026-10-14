@@ -224,6 +224,10 @@ code { font-family: var(--mono); }
 .tile .tile-live { position: absolute; top: 5px; left: 6px; font-family: var(--mono); font-size: 0.5rem; letter-spacing: 0.14em; color: var(--red); }
 .tile .tile-live::before { content: ""; display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: var(--red); margin-right: 4px; vertical-align: middle; animation: blink 1.2s infinite; }
 
+/* street view */
+.sv-wrap { margin-top: 0.9rem; background: #000; border: 1px solid var(--line-strong); border-radius: 8px; overflow: hidden; }
+.sv-frame { display: block; width: 100%; aspect-ratio: 16 / 10; border: 0; background: #000; }
+
 /* contacts board */
 .tabs { margin-top: 0.8rem; display: flex; gap: 0.3rem; }
 .tabs button { background: transparent; border: 1px solid var(--line); border-radius: 5px; color: var(--muted); font-family: var(--mono); font-size: 0.6rem; letter-spacing: 0.12em; padding: 0.35rem 0.6rem; cursor: pointer; }

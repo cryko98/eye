@@ -31,14 +31,14 @@ The CA shows in the top bar, the mission card, the Tokenomics and How-to-buy win
 | --- | --- | --- |
 | Aircraft | OpenSky Network via `api/flights.js` (adsb.lol fallback) | up to 6,000 contacts, refreshed every minute, dead-reckoned in between; click, follow or ride in the cockpit |
 | Cameras | 26 public networks, `cameras.json` | North America: Florida, Georgia, Pennsylvania, Connecticut, Arizona, Nevada, Idaho, Louisiana, Alaska, Oregon, Austin, Ontario, Alberta, British Columbia, Yukon, Calgary. Europe: London, Norway, Finland, Estonia, Tallinn, foto-webcam.eu alpine weather cams (AT/DE/IT/CH). Asia-Pacific: Hong Kong, Singapore, Sydney/NSW, New Zealand. Estonian and Singapore frames resolve through `api/estonia.js` and `api/singapore.js` |
-| Satellites | CelesTrak `stations` + `visual` TLEs, satellite.js | ISS, Tiangong, Hubble labelled; follow and cockpit modes |
+| Satellites | CelesTrak `stations` + `visual` TLEs, satellite.js | satellite icons; ISS, Tiangong, Hubble labelled; follow and cockpit modes |
 | Earthquakes | USGS M2.5+ past 24 h | sized by magnitude |
 | Radar | RainViewer | latest frame, refreshed every 10 min while on |
 | Night lights | NASA GIBS VIIRS Black Marble | shown only on the dark side |
 | Cables | TeleGeography submarine cable map | loaded on demand |
 | Imagery | Esri World Imagery (NASA Blue Marble fallback) | |
 
-Views: 3D oblique, top-down north-up, flat 2D map. Sensors: EO, FLIR, NVG, CRT. Search accepts `lat, lon`, a bundled city name or any place (Photon / OpenStreetMap). SHARE copies a link that restores camera, layers, sensor and tracked target.
+Street level: double-click any spot on the globe (or STREET VIEW on a camera) to open Google Street View in a window; keyless embed by default, the Embed API when `googleMapsApiKey` is set. Views: 3D oblique, top-down north-up, flat 2D map. Sensors: EO, FLIR, NVG, CRT. Search accepts `lat, lon`, a bundled city name or any place (Photon / OpenStreetMap). SHARE copies a link that restores camera, layers, sensor and tracked target.
 
 ## Files
 

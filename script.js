@@ -81,7 +81,7 @@ setInterval(() => { if (!logQueue.length) log(rand(BANTER)); }, 11000);
 
 /* ---------- state ---------- */
 const state = { cams: [], camSources: {}, planes: [], sats: [], quakes: [], feed: "INIT", feedTime: 0, source: "", selected: null };
-const SRC_FLAG = { tallinn: "Tallinn", ee: "Estonia", fi: "Finland", no: "Norway", tfl: "London", it: "Italy", hu: "Hungary", hk: "Hong Kong", sg: "Singapore", nsw: "Sydney / NSW", nz: "New Zealand", austin: "Austin", or: "Oregon", ga: "Georgia", pa: "Pennsylvania", az: "Arizona", nv: "Nevada", la: "Louisiana", ak: "Alaska", on: "Ontario", ab: "Alberta", bc: "British Columbia", calgary: "Calgary", osm: "OpenStreetMap", windy: "Windy" };
+const SRC_FLAG = { tallinn: "Tallinn", ee: "Estonia", fi: "Finland", no: "Norway", tfl: "London", it: "Italy", hu: "Hungary", hk: "Hong Kong", sg: "Singapore", nsw: "Sydney / NSW", nz: "New Zealand", austin: "Austin", or: "Oregon", ga: "Georgia", pa: "Pennsylvania", az: "Arizona", nv: "Nevada", la: "Louisiana", ak: "Alaska", on: "Ontario", ab: "Alberta", bc: "British Columbia", calgary: "Calgary", fl: "Florida", ct: "Connecticut", id: "Idaho", yt: "Yukon", fw: "Alps weather", osm: "OpenStreetMap", windy: "Windy" };
 
 /* ---------- data: cameras ---------- */
 const camsReady = fetch(CONFIG.camerasUrl).then((r) => r.json()).then((j) => {
@@ -608,6 +608,19 @@ const globe = {};
     const carto = c ? Cesium.Cartographic.fromCartesian(c) : camera.positionCartographic;
     return { lat: CM.toDegrees(carto.latitude), lon: CM.toDegrees(carto.longitude) };
   };
+  // With a Windy key, webcams around the view load by themselves once the camera settles below 3,000 km.
+  let windyIdle = null;
+  camera.moveEnd.addEventListener(() => {
+    if (!windy.enabled) return;
+    clearTimeout(windyIdle);
+    windyIdle = setTimeout(() => {
+      const h = camera.positionCartographic.height; if (h > 3e6) return;
+      const { lat, lon } = globe.viewCentre();
+      const key = `${lat.toFixed(1)},${lon.toFixed(1)}`;
+      if (windy.lastKey === key) return; windy.lastKey = key;
+      loadWindyNear(lat, lon, h > 8e5 ? 400 : 200);
+    }, 900);
+  });
   $("btn-windy").addEventListener("click", async () => {
     const { lat, lon } = globe.viewCentre();
     const fresh = await loadWindyNear(lat, lon, camera.positionCartographic.height > 2e6 ? 500 : 250);

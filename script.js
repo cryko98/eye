@@ -51,7 +51,7 @@ document.querySelectorAll("[data-copy-ca]").forEach((b) => b.addEventListener("c
 const dock = $("dock"), dockToggle = $("dock-toggle");
 dockToggle.addEventListener("click", () => { const open = dock.classList.toggle("open"); dockToggle.setAttribute("aria-expanded", String(open)); });
 const mission = $("mission"), missionToggle = $("mission-toggle");
-function setMission(collapsed) { mission.classList.toggle("collapsed", collapsed); missionToggle.textContent = collapsed ? "SHOW" : "HIDE"; }
+function setMission(collapsed) { mission.classList.toggle("collapsed", collapsed); missionToggle.textContent = collapsed ? "SHOW" : "HIDE"; document.body.classList.toggle("mission-open", !collapsed); }
 missionToggle.addEventListener("click", () => setMission(!mission.classList.contains("collapsed")));
 if (window.innerWidth < 1500 || window.innerHeight < 700) setMission(true);
 

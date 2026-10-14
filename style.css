@@ -288,6 +288,10 @@ img, svg { -webkit-user-drag: none; user-drag: none; }
 .mission { left: calc(2 * var(--gap) + clamp(280px, 24vw, 360px)); }
 @media (max-width: 1100px) and (min-width: 821px) { .mission { display: none; } }
 @media (max-width: 820px) {
+  .mission:not(.collapsed) { z-index: 14; }
+  body.mission-open .ctl-strip, body.mission-open .controls { display: none; }
+}
+@media (max-width: 820px) {
   .mission { left: var(--gap); }
 }
 

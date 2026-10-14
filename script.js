@@ -620,7 +620,10 @@ const globe = {};
     }
     acCache.set(key, info); return info;
   }
+  let returnView = null;
+  const captureView = () => ({ destination: C3.clone(camera.positionWC), orientation: { heading: camera.heading, pitch: camera.pitch, roll: camera.roll } });
   async function showTarget(sel, fly) {
+    if (!state.selected && fly) returnView = captureView();
     const changed = state.selected?.type !== sel.type || livePos(state.selected) !== livePos(sel);
     if (changed) stopFollow(true);
     state.selected = sel;
@@ -683,7 +686,16 @@ const globe = {};
   globe.selectPlane = (p, fly = true) => showTarget({ type: "plane", p }, fly);
   globe.selectSat = (s, fly = true) => showTarget({ type: "sat", s }, fly);
   globe.selectQuake = (q, fly = true) => showTarget({ type: "quake", q }, fly);
-  globe.clearTarget = () => { marker.show = false; state.selected = null; clearInterval(imgTimer); stopFollow(); T.nearby.hidden = true; };
+  globe.clearTarget = (keepView) => {
+    const had = !!state.selected;
+    marker.show = false; state.selected = null; clearInterval(imgTimer); stopFollow(true); T.nearby.hidden = true;
+    if (had && !keepView) {
+      camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
+      if (returnView) camera.flyTo({ ...returnView, duration: 2.2 }); else camera.flyTo({ destination: HOME(), orientation: { heading: 0, pitch: -CM.PI_OVER_TWO, roll: 0 }, duration: 2.2 });
+      log("TARGET RELEASED · RETURNING TO PREVIOUS VIEW"); pauseRotation();
+    }
+    returnView = null;
+  };
   // Hidden Eyes: every selection is also a probe; the server alone knows what is hidden where.
   { const sp = globe.selectPlane, sc = globe.selectCam, ss = globe.selectSat;
     globe.selectPlane = (p, fly) => { sp(p, fly); huntProbe("plane", { icao: p.icao, cs: p.cs, alt: p.alt, lat: p.lat, lon: p.lon, country: p.country }); };
@@ -705,7 +717,7 @@ const globe = {};
     } catch {}
   }
   camera.moveEnd.addEventListener(pollEggs); setInterval(pollEggs, 4000);
-  T.panel.querySelector("[data-close]").addEventListener("click", globe.clearTarget);
+  T.panel.querySelector("[data-close]").addEventListener("click", () => globe.clearTarget());
   $("target-fly").addEventListener("click", () => state.selected && flyToSel(state.selected));
   $("target-next").addEventListener("click", () => {
     const s = state.selected; if (!s) return;
@@ -826,7 +838,7 @@ const globe = {};
 
   /* ---- actions ---- */
   $("btn-reset").addEventListener("click", () => {
-    closePanels(); globe.clearTarget(); stopFly(); setViewMode("3d");
+    closePanels(); globe.clearTarget(true); stopFly(); setViewMode("3d");
     camera.flyTo({ destination: HOME(), orientation: { heading: 0, pitch: -CM.PI_OVER_TWO, roll: 0 }, duration: 2.2, complete: () => { rotating = !reduceMotion; } });
     log("RESET GLOBE · FULL EARTH");
   });
@@ -1047,7 +1059,7 @@ const globe = {};
       catch {}
     }
     if (lon == null) return log(`NO FIX · ${q.toUpperCase()}`);
-    globe.clearTarget(); closePanels(); stopFollow(true);
+    globe.clearTarget(true); closePanels(); stopFollow(true);
     camera.flyTo({ destination: C3.fromDegrees(lon, lat - 0.12, 18000), orientation: { heading: 0, pitch: CM.toRadians(-42), roll: 0 }, duration: 3 });
     log(`FLY TO · ${label.toUpperCase()}`); pauseRotation();
     loadWindyNear(lat, lon, 150);

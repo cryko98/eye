@@ -50,6 +50,7 @@ Views: 3D oblique, top-down north-up, flat 2D map. Sensors: EO, FLIR, NVG, CRT. 
 | `api/flights.js` | Vercel function: proxies and caches OpenSky state vectors |
 | `api/estonia.js` | Vercel function: latest Estonian camera frame URLs |
 | `api/singapore.js` | Vercel function: latest Singapore (LTA) camera frame URLs |
+| `api/windy.js` | Vercel function (optional, needs `WINDY_API_KEY`): nearby worldwide webcams from Windy.com |
 | `cameras.json` | Camera catalog (source templates + compact rows) |
 | `dev-server.js` | Local dev server (static files + `/api/*`) |
 | `logo.svg`, `og.png` | Favicon / logo and social share image |
@@ -67,7 +68,10 @@ Then open http://localhost:5173.
 
 Import the GitHub repo. Framework preset **Other**, no build command, output directory root. The `api/` folder is picked up automatically as serverless functions.
 
-Optional environment variables: `OPENSKY_CLIENT_ID` and `OPENSKY_CLIENT_SECRET` (OAuth2 client credentials from a free OpenSky account) raise the aircraft-feed quota. Without them anonymous access is used and, if OpenSky throttles, the function falls back to adsb.lol samples around major hubs.
+Optional environment variables:
+
+- `WINDY_API_KEY`: a free key from https://api.windy.com/keys turns on the **WEBCAMS HERE** button and the `api/windy.js` function, which pulls Windy.com webcams (tens of thousands worldwide, including Africa, Asia and South America) around the current view and around every search result. Attribution "Webcams by Windy.com" is shown in the Socials window.
+- `OPENSKY_CLIENT_ID` and `OPENSKY_CLIENT_SECRET` (OAuth2 client credentials from a free OpenSky account) raise the aircraft-feed quota. Without them anonymous access is used and, if OpenSky throttles, the function falls back to adsb.lol samples around major hubs.
 
 ## Data credits
 

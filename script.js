@@ -14,6 +14,7 @@ const CONFIG = {
   flightsRefreshMs: 60_000,
   camerasUrl: "/cameras.json",
   estoniaUrl: "/api/estonia",                         // Vercel function (api/estonia.js)
+  windyUrl: "/api/windy",                             // optional worldwide webcams (set WINDY_API_KEY on Vercel)
   // Optional upgrades (both free tiers): a Cesium ion token adds real 3D terrain and
   // OSM 3D buildings; a Google Maps key adds Photorealistic 3D Tiles like the original.
   cesiumIonToken: "",
@@ -80,7 +81,7 @@ setInterval(() => { if (!logQueue.length) log(rand(BANTER)); }, 11000);
 
 /* ---------- state ---------- */
 const state = { cams: [], camSources: {}, planes: [], sats: [], quakes: [], feed: "INIT", feedTime: 0, source: "", selected: null };
-const SRC_FLAG = { tallinn: "Tallinn", ee: "Estonia", fi: "Finland", no: "Norway", tfl: "London", it: "Italy", hu: "Hungary", hk: "Hong Kong", sg: "Singapore", nsw: "Sydney / NSW", nz: "New Zealand", austin: "Austin", or: "Oregon", ga: "Georgia", pa: "Pennsylvania", az: "Arizona", nv: "Nevada", la: "Louisiana", ak: "Alaska", on: "Ontario", ab: "Alberta", bc: "British Columbia", calgary: "Calgary", osm: "OpenStreetMap" };
+const SRC_FLAG = { tallinn: "Tallinn", ee: "Estonia", fi: "Finland", no: "Norway", tfl: "London", it: "Italy", hu: "Hungary", hk: "Hong Kong", sg: "Singapore", nsw: "Sydney / NSW", nz: "New Zealand", austin: "Austin", or: "Oregon", ga: "Georgia", pa: "Pennsylvania", az: "Arizona", nv: "Nevada", la: "Louisiana", ak: "Alaska", on: "Ontario", ab: "Alberta", bc: "British Columbia", calgary: "Calgary", osm: "OpenStreetMap", windy: "Windy" };
 
 /* ---------- data: cameras ---------- */
 const camsReady = fetch(CONFIG.camerasUrl).then((r) => r.json()).then((j) => {
@@ -93,6 +94,29 @@ const camsReady = fetch(CONFIG.camerasUrl).then((r) => r.json()).then((j) => {
   return state.cams;
 }).catch(() => { hud.cams.textContent = "ERR"; return []; });
 const dynCache = {};
+/* ---------- optional: worldwide webcams via Windy (needs WINDY_API_KEY on the server) ---------- */
+const windy = { enabled: false, loaded: new Map() };
+fetch(CONFIG.windyUrl).then((r) => r.json()).then((j) => {
+  windy.enabled = Boolean(j.enabled);
+  document.querySelectorAll("[data-windy]").forEach((b) => (b.hidden = !windy.enabled));
+  if (windy.enabled) { state.camSources.windy = { name: "Windy.com webcams", place: "Worldwide", tpl: "{k}" }; log("WORLDWIDE WEBCAM UPLINK · WINDY · READY"); }
+}).catch(() => {});
+async function loadWindyNear(lat, lon, radius = 250) {
+  if (!windy.enabled) return [];
+  try {
+    const j = await fetch(`${CONFIG.windyUrl}?lat=${lat.toFixed(2)}&lon=${lon.toFixed(2)}&radius=${radius}`).then((r) => r.json());
+    const fresh = [];
+    for (const [id, title, la, lo, preview, place] of j.rows || []) {
+      if (windy.loaded.has(id)) continue;
+      const c = { id: `windy:${id}`, s: "windy", k: preview, n: title, place: place || "Windy webcam", la, lo };
+      windy.loaded.set(id, c); state.cams.push(c); fresh.push(c);
+    }
+    if (fresh.length) { hud.cams.textContent = pad(state.cams.length, 4); $("cam-count").textContent = fmtInt(state.cams.length); globe.addCams?.(fresh); }
+    if (fresh.length && !$("wall-source").querySelector('option[value="windy"]')) { const o = document.createElement("option"); o.value = "windy"; o.textContent = "WINDY · WORLDWIDE"; $("wall-source").appendChild(o); }
+    log(`WINDY · ${j.rows?.length || 0} WEBCAMS WITHIN ${radius} KM · ${fresh.length} NEW`);
+    return fresh;
+  } catch { log("WINDY UPLINK FAILED"); return []; }
+}
 async function camUrl(c, bust = true) {
   const src = state.camSources[c.s];
   if (src.dyn) {
@@ -325,13 +349,14 @@ const globe = {};
   // Refresh the radar frame every 10 minutes while it is on.
   setInterval(() => { if (layerState.radar && radarLayer) { viewer.imageryLayers.remove(radarLayer); radarLayer = null; setLayer("radar", true, true); } }, 600_000);
 
-  camsReady.then((cams) => {
+  const MAGENTA = Cesium.Color.fromCssColorString("#ff7ad9");
+  globe.addCams = (cams) => {
     for (const c of cams) camPoints.add({
-      position: C3.fromDegrees(c.lo, c.la, 30), color: AMBER, pixelSize: 6, outlineColor: Cesium.Color.BLACK.withAlpha(0.7), outlineWidth: 1,
+      position: C3.fromDegrees(c.lo, c.la, 30), color: c.s === "windy" ? MAGENTA : AMBER, pixelSize: 6, outlineColor: Cesium.Color.BLACK.withAlpha(0.7), outlineWidth: 1,
       scaleByDistance: new Cesium.NearFarScalar(2e4, 1.5, 1.2e7, 0.5), id: { type: "cam", cam: c },
     });
-    applyHashTarget();
-  });
+  };
+  camsReady.then((cams) => { globe.addCams(cams); applyHashTarget(); });
   quakesReady.then((qs) => {
     for (const q of qs) quakePoints.add({
       position: C3.fromDegrees(q.lon, q.lat, 1000), color: RED.withAlpha(0.85), pixelSize: 4 + Math.max(0, q.mag - 2) * 3,
@@ -578,6 +603,16 @@ const globe = {};
     log("RESET GLOBE · FULL EARTH");
   });
   $("btn-cam").addEventListener("click", () => state.cams.length && globe.selectCam(rand(state.cams)));
+  globe.viewCentre = () => {
+    const c = camera.pickEllipsoid(new Cesium.Cartesian2(scene.canvas.clientWidth / 2, scene.canvas.clientHeight / 2));
+    const carto = c ? Cesium.Cartographic.fromCartesian(c) : camera.positionCartographic;
+    return { lat: CM.toDegrees(carto.latitude), lon: CM.toDegrees(carto.longitude) };
+  };
+  $("btn-windy").addEventListener("click", async () => {
+    const { lat, lon } = globe.viewCentre();
+    const fresh = await loadWindyNear(lat, lon, camera.positionCartographic.height > 2e6 ? 500 : 250);
+    if (fresh.length) { openPanel("cameras"); $("wall-source").value = "windy"; buildWall(); }
+  });
   $("wall-random").addEventListener("click", () => state.cams.length && globe.selectCam(rand(state.cams)));
   function trackRandom() { const pool = state.planes.filter((p) => p.cs && p.alt > 2000); if (pool.length) globe.selectPlane(rand(pool)); else log("NO AIRCRAFT IN FEED YET"); }
   globe.trackRandom = trackRandom;
@@ -602,6 +637,7 @@ const globe = {};
     globe.clearTarget(); closePanels(); stopFollow(true);
     camera.flyTo({ destination: C3.fromDegrees(lon, lat - 0.12, 18000), orientation: { heading: 0, pitch: CM.toRadians(-42), roll: 0 }, duration: 3 });
     log(`FLY TO · ${label.toUpperCase()}`); pauseRotation();
+    loadWindyNear(lat, lon, 150);
   }
   $("search-form").addEventListener("submit", (e) => { e.preventDefault(); search($("search").value); $("search").blur(); });
 

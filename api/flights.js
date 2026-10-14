@@ -81,7 +81,7 @@ async function fromHubs(name, concurrency = 12) {
   const seen = new Map(); const errors = [];
   await runBatches(FALLBACK_HUBS, concurrency, async ([lat, lon]) => {
     try {
-      const r = await fetch(HUB_SOURCES[name](lat, lon), { headers: { "User-Agent": "gods-eye-view-eye/1.0 (+https://github.com/cryko98/eye)" }, signal: AbortSignal.timeout(7000) });
+      const r = await fetch(HUB_SOURCES[name](lat, lon), { headers: { "User-Agent": "gods-eye-view-eye/1.0 (+https://github.com/cryko98/eye)" }, signal: AbortSignal.timeout(6000) });
       if (!r.ok) { errors.push(`${r.status}`); return; }
       const j = await r.json();
       for (const a of j.ac || j.aircraft || []) {
@@ -117,7 +117,7 @@ async function loadAny() {
     catch (e) { reasons.push(`opensky: ${String(e.message || e).slice(0, 80)}`); openskyDownUntil = Date.now() + 10 * 60_000; }
   }
   // Both hub sources at once, merged by ICAO hex: adsb.fi answers fast, adsb.lol fills in what it can within the budget.
-  const results = await Promise.allSettled([fromHubs("adsb.fi", 20), fromHubs("adsb.lol", 8)]);
+  const results = await Promise.allSettled([fromHubs("adsb.fi", 20), fromHubs("adsb.lol", 15)]);
   const merged = new Map(); const used = [];
   for (const r of results) {
     if (r.status !== "fulfilled") { reasons.push(String(r.reason?.message || r.reason).slice(0, 80)); continue; }

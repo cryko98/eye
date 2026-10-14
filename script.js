@@ -173,7 +173,8 @@ async function loadFlights() {
     const j = await r.json();
     if (!j.rows || !j.rows.length) throw new Error("empty");
     const t0 = Date.now();
-    state.planes = j.rows.map((r) => ({ icao: r[0], cs: r[1], lon: r[2], lat: r[3], alt: r[4], v: r[5], hdg: r[6], country: r[7], vr: r[8], t0 }));
+    const skew = j.time ? t0 - j.time * 1000 : 0; // server clock vs ours, so per-row fix times map onto local time
+    state.planes = j.rows.map((r) => ({ icao: r[0], cs: r[1], lon: r[2], lat: r[3], alt: r[4], v: r[5], hdg: r[6], country: r[7], vr: r[8], t0: r[9] ? Math.min(t0, r[9] * 1000 + skew) : t0 }));
     state.feedTime = (j.time || t0 / 1000) * 1000; state.source = j.source || "feed";
     state.feed = r.headers.get("X-Feed-State") === "stale" ? "STALE" : "LIVE";
     hud.planes.textContent = pad(state.planes.length, 4);

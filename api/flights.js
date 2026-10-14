@@ -47,7 +47,7 @@ async function fromOpenSky() {
   const headers = { "User-Agent": "gods-eye-view-eye/1.0 (+https://github.com/cryko98/eye)" };
   const t = await getToken();
   if (t) headers.Authorization = `Bearer ${t}`;
-  const r = await fetch(OPENSKY_URL, { headers });
+  const r = await fetch(OPENSKY_URL, { headers, signal: AbortSignal.timeout(9000) });
   if (!r.ok) throw new Error(`opensky ${r.status}`);
   const j = await r.json();
   const states = (j.states || []).filter((s) => s[5] != null && s[6] != null && !s[8]);
@@ -67,7 +67,7 @@ async function fromHubs(name) {
   const seen = new Map(); const errors = [];
   await Promise.all(FALLBACK_HUBS.map(async ([lat, lon]) => {
     try {
-      const r = await fetch(HUB_SOURCES[name](lat, lon), { headers: { "User-Agent": "gods-eye-view-eye/1.0 (+https://github.com/cryko98/eye)" } });
+      const r = await fetch(HUB_SOURCES[name](lat, lon), { headers: { "User-Agent": "gods-eye-view-eye/1.0 (+https://github.com/cryko98/eye)" }, signal: AbortSignal.timeout(7000) });
       if (!r.ok) { errors.push(`${r.status}`); return; }
       const j = await r.json();
       for (const a of j.ac || j.aircraft || []) {
@@ -94,12 +94,14 @@ function send(res, body, state) {
   res.end(body);
 }
 
+let openskyDownUntil = 0;
 async function loadAny() {
   const reasons = [];
   const attempts = [["opensky", fromOpenSky], ["adsb.lol", () => fromHubs("adsb.lol")], ["adsb.fi", () => fromHubs("adsb.fi")]];
   for (const [name, fn] of attempts) {
+    if (name === "opensky" && Date.now() < openskyDownUntil) { reasons.push("opensky: skipped (recent failure)"); continue; }
     try { const data = await fn(); if (reasons.length) data.fallbackReason = reasons.join(" | "); return data; }
-    catch (e) { reasons.push(`${name}: ${String(e.message || e).slice(0, 80)}`); }
+    catch (e) { reasons.push(`${name}: ${String(e.message || e).slice(0, 80)}`); if (name === "opensky") openskyDownUntil = Date.now() + 10 * 60_000; }
   }
   throw new Error(reasons.join(" | "));
 }

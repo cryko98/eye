@@ -1,6 +1,6 @@
 # God's Eye View — $EYE
 
-Single-screen site for the **$EYE** memecoin on Solana: a live 3D globe (CesiumJS) with real satellite imagery, a day-night terminator with city lights, live ADS-B aircraft, satellites propagated from CelesTrak elements, USGS earthquakes, RainViewer weather radar, the submarine cable map and 6,586 real public cameras in 10 networks. Everything else (intel, tokenomics, how to buy, roadmap, cameras, contacts, socials) opens in floating windows over the globe. No scrolling.
+Single-screen site for the **$EYE** memecoin on Solana: a live 3D globe (CesiumJS) with real satellite imagery, a day-night terminator with city lights, live ADS-B aircraft, satellites propagated from CelesTrak elements, USGS earthquakes, RainViewer weather radar, the submarine cable map and 16,867 real public cameras in 21 networks on five continents. Everything else (intel, tokenomics, how to buy, roadmap, cameras, contacts, socials) opens in floating windows over the globe. No scrolling.
 
 Inspired by the look and feature set of the open-source [God's Eye View](https://github.com/bilawalsidhu/gods-eye-view) project; rebuilt from scratch as a static site plus two small serverless functions.
 
@@ -30,7 +30,7 @@ The CA shows in the top bar, the mission card, the Tokenomics and How-to-buy win
 | Layer | Source | Notes |
 | --- | --- | --- |
 | Aircraft | OpenSky Network via `api/flights.js` (adsb.lol fallback) | up to 6,000 contacts, refreshed every minute, dead-reckoned in between; click, follow or ride in the cockpit |
-| Cameras | 10 public networks, `cameras.json` | London (TfL), Hong Kong, Sydney/NSW, Austin, Oregon, Calgary, Norway, Finland, Estonia, Tallinn; Estonian frames resolve through `api/estonia.js` |
+| Cameras | 21 public networks, `cameras.json` | North America: Georgia, Pennsylvania, Arizona, Nevada, Louisiana, Alaska, Oregon, Austin, Ontario, Alberta, British Columbia, Calgary. Europe: London, Norway, Finland, Estonia, Tallinn. Asia-Pacific: Hong Kong, Singapore, Sydney/NSW, New Zealand. Estonian and Singapore frames resolve through `api/estonia.js` and `api/singapore.js` |
 | Satellites | CelesTrak `stations` + `visual` TLEs, satellite.js | ISS, Tiangong, Hubble labelled; follow and cockpit modes |
 | Earthquakes | USGS M2.5+ past 24 h | sized by magnitude |
 | Radar | RainViewer | latest frame, refreshed every 10 min while on |
@@ -49,6 +49,7 @@ Views: 3D oblique, top-down north-up, flat 2D map. Sensors: EO, FLIR, NVG, CRT. 
 | `script.js` | Config, Cesium globe, layers, sensors, views, search, share, windows |
 | `api/flights.js` | Vercel function: proxies and caches OpenSky state vectors |
 | `api/estonia.js` | Vercel function: latest Estonian camera frame URLs |
+| `api/singapore.js` | Vercel function: latest Singapore (LTA) camera frame URLs |
 | `cameras.json` | Camera catalog (source templates + compact rows) |
 | `dev-server.js` | Local dev server (static files + `/api/*`) |
 | `logo.svg`, `og.png` | Favicon / logo and social share image |
@@ -70,4 +71,4 @@ Optional environment variables: `OPENSKY_CLIENT_ID` and `OPENSKY_CLIENT_SECRET` 
 
 ## Data credits
 
-OpenSky Network, adsb.lol, CelesTrak, USGS, RainViewer, TeleGeography, TfL Open Data, Hong Kong Transport Department (data.gov.hk), Live Traffic NSW (CC BY 4.0), City of Austin Open Data, Oregon DOT TripCheck, Open Calgary, Statens vegvesen (NLOD 2.0), Fintraffic Digitraffic (CC BY 4.0), Transpordiamet / Tarktee, City of Tallinn, Esri and partners, NASA GIBS, Photon (komoot), CesiumJS.
+OpenSky Network, adsb.lol, CelesTrak, USGS, RainViewer, TeleGeography, Georgia 511, PennDOT 511PA, ADOT AZ511, NDOT Nevada Roads, Louisiana 511, Alaska 511, Ontario 511 (OGL Ontario), Alberta 511, DriveBC (OGL BC), NZTA, LTA via data.gov.sg, TfL Open Data, Hong Kong Transport Department (data.gov.hk), Live Traffic NSW (CC BY 4.0), City of Austin Open Data, Oregon DOT TripCheck, Open Calgary, Statens vegvesen (NLOD 2.0), Fintraffic Digitraffic (CC BY 4.0), Transpordiamet / Tarktee, City of Tallinn, Esri and partners, NASA GIBS, Photon (komoot), CesiumJS.

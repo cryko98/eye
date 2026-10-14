@@ -79,8 +79,8 @@ const BANTER = ["ALERT: JEET DETECTED · SELLING AT A LOSS", "LOCK: WHALE WALLET
 setInterval(() => { if (!logQueue.length) log(rand(BANTER)); }, 11000);
 
 /* ---------- state ---------- */
-const state = { cams: [], camSources: {}, planes: [], sats: [], quakes: [], feed: "INIT", feedTime: 0, source: "", selected: null, estonia: { t: 0, map: null } };
-const SRC_FLAG = { tallinn: "Tallinn", ee: "Estonia", fi: "Finland", no: "Norway", tfl: "London", hk: "Hong Kong", nsw: "Sydney / NSW", austin: "Austin", or: "Oregon", calgary: "Calgary" };
+const state = { cams: [], camSources: {}, planes: [], sats: [], quakes: [], feed: "INIT", feedTime: 0, source: "", selected: null };
+const SRC_FLAG = { tallinn: "Tallinn", ee: "Estonia", fi: "Finland", no: "Norway", tfl: "London", it: "Italy", hu: "Hungary", hk: "Hong Kong", sg: "Singapore", nsw: "Sydney / NSW", nz: "New Zealand", austin: "Austin", or: "Oregon", ga: "Georgia", pa: "Pennsylvania", az: "Arizona", nv: "Nevada", la: "Louisiana", ak: "Alaska", on: "Ontario", ab: "Alberta", bc: "British Columbia", calgary: "Calgary", osm: "OpenStreetMap" };
 
 /* ---------- data: cameras ---------- */
 const camsReady = fetch(CONFIG.camerasUrl).then((r) => r.json()).then((j) => {
@@ -88,20 +88,20 @@ const camsReady = fetch(CONFIG.camerasUrl).then((r) => r.json()).then((j) => {
   state.cams = j.cams.map(([s, k, n, la, lo]) => ({ id: `${s}:${k}`, s, k, n, place: j.sources[s].place, la, lo }));
   hud.cams.textContent = pad(state.cams.length, 4); $("cam-count").textContent = fmtInt(state.cams.length);
   const sel = $("wall-source");
-  Object.entries(j.sources).forEach(([s, src]) => { const o = document.createElement("option"); o.value = s; o.textContent = `${(SRC_FLAG[s] || src.place).toUpperCase()} · ${state.cams.filter((c) => c.s === s).length}`; sel.appendChild(o); });
-  log(`CAMERA NETWORK ONLINE · ${fmtInt(state.cams.length)} SOURCES · 10 NETWORKS`);
+  Object.entries(j.sources).forEach(([s, src]) => { if (!state.cams.some((c) => c.s === s)) return; const o = document.createElement("option"); o.value = s; o.textContent = `${(SRC_FLAG[s] || src.place).toUpperCase()} · ${state.cams.filter((c) => c.s === s).length}`; sel.appendChild(o); });
+  log(`CAMERA NETWORK ONLINE · ${fmtInt(state.cams.length)} CAMERAS · ${Object.keys(j.sources).length} NETWORKS`); $("cam-networks").textContent = Object.keys(j.sources).filter((k) => state.cams.some((c) => c.s === k)).length;
   return state.cams;
 }).catch(() => { hud.cams.textContent = "ERR"; return []; });
-let estoniaInflight = null;
+const dynCache = {};
 async function camUrl(c, bust = true) {
   const src = state.camSources[c.s];
   if (src.dyn) {
-    if (!state.estonia.map || Date.now() - state.estonia.t > 60_000) {
-      estoniaInflight ||= fetch(CONFIG.estoniaUrl, { cache: "no-store" }).then((r) => r.json())
-        .then((map) => { state.estonia = { t: Date.now(), map }; }).catch(() => { state.estonia.t = Date.now() - 50_000; }).finally(() => { estoniaInflight = null; });
-      await estoniaInflight;
+    const d = (dynCache[src.dyn] ||= { t: 0, map: null, inflight: null });
+    if (!d.map || Date.now() - d.t > 60_000) {
+      d.inflight ||= fetch(src.dyn, { cache: "no-store" }).then((r) => r.json()).then((map) => { d.map = map; d.t = Date.now(); }).catch(() => { d.t = Date.now() - 50_000; }).finally(() => { d.inflight = null; });
+      await d.inflight;
     }
-    return state.estonia.map?.[c.k] || null;
+    return d.map?.[c.k] || null;
   }
   const u = src.tpl.replace("{k}", c.k);
   return bust ? `${u}${u.includes("?") ? "&" : "?"}_=${Date.now()}` : u;

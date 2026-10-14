@@ -3,7 +3,7 @@
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
-const API = { flights: require("./api/flights.js"), estonia: require("./api/estonia.js") };
+const API = { flights: require("./api/flights.js"), estonia: require("./api/estonia.js"), singapore: require("./api/singapore.js") };
 
 const ROOT = __dirname;
 const PORT = process.env.PORT || 5173;

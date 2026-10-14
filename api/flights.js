@@ -59,14 +59,18 @@ async function fromOpenSky() {
   return { time: j.time, total: (j.states || []).length, source: "opensky", rows };
 }
 
-async function fromAdsbLol() {
-  const seen = new Map();
+const HUB_SOURCES = {
+  "adsb.lol": (lat, lon) => `https://api.adsb.lol/v2/lat/${lat}/lon/${lon}/dist/250`,
+  "adsb.fi": (lat, lon) => `https://opendata.adsb.fi/api/v2/lat/${lat}/lon/${lon}/dist/250`,
+};
+async function fromHubs(name) {
+  const seen = new Map(); const errors = [];
   await Promise.all(FALLBACK_HUBS.map(async ([lat, lon]) => {
     try {
-      const r = await fetch(`https://api.adsb.lol/v2/lat/${lat}/lon/${lon}/dist/250`);
-      if (!r.ok) return;
+      const r = await fetch(HUB_SOURCES[name](lat, lon), { headers: { "User-Agent": "gods-eye-view-eye/1.0 (+https://github.com/cryko98/eye)" } });
+      if (!r.ok) { errors.push(`${r.status}`); return; }
       const j = await r.json();
-      for (const a of j.ac || []) {
+      for (const a of j.ac || j.aircraft || []) {
         if (a.lat == null || a.lon == null || a.alt_baro === "ground") continue;
         const altFt = typeof a.alt_geom === "number" ? a.alt_geom : typeof a.alt_baro === "number" ? a.alt_baro : 0;
         seen.set(a.hex, [
@@ -74,11 +78,11 @@ async function fromAdsbLol() {
           Math.round(altFt * 0.3048), Math.round((a.gs || 0) * 0.5144), Math.round(a.track || a.true_heading || 0), "", Math.round((a.baro_rate || 0) * 0.00508),
         ]);
       }
-    } catch {}
+    } catch (e) { errors.push(String(e.message || e).slice(0, 40)); }
   }));
   const rows = [...seen.values()];
-  if (!rows.length) throw new Error("adsb.lol empty");
-  return { time: Math.floor(Date.now() / 1000), total: rows.length, source: "adsb.lol", rows };
+  if (!rows.length) throw new Error(`${name} empty (${errors.slice(0, 3).join(", ") || "no data"})`);
+  return { time: Math.floor(Date.now() / 1000), total: rows.length, source: name, rows };
 }
 
 function send(res, body, state) {
@@ -90,14 +94,33 @@ function send(res, body, state) {
   res.end(body);
 }
 
+async function loadAny() {
+  const reasons = [];
+  const attempts = [["opensky", fromOpenSky], ["adsb.lol", () => fromHubs("adsb.lol")], ["adsb.fi", () => fromHubs("adsb.fi")]];
+  for (const [name, fn] of attempts) {
+    try { const data = await fn(); if (reasons.length) data.fallbackReason = reasons.join(" | "); return data; }
+    catch (e) { reasons.push(`${name}: ${String(e.message || e).slice(0, 80)}`); }
+  }
+  throw new Error(reasons.join(" | "));
+}
+
 module.exports = async function handler(req, res) {
   const now = Date.now();
+  const url = new URL(req.url, "http://localhost");
+  if (url.searchParams.get("debug") === "1") {
+    const out = {};
+    for (const [name, fn] of [["opensky", fromOpenSky], ["adsb.lol", () => fromHubs("adsb.lol")], ["adsb.fi", () => fromHubs("adsb.fi")]]) {
+      const t0 = Date.now();
+      try { const d = await fn(); out[name] = { ok: true, rows: d.rows.length, ms: Date.now() - t0 }; }
+      catch (e) { out[name] = { ok: false, error: String(e.message || e).slice(0, 160), ms: Date.now() - t0 }; }
+    }
+    res.setHeader("Content-Type", "application/json; charset=utf-8"); res.setHeader("Cache-Control", "no-store"); res.statusCode = 200;
+    return res.end(JSON.stringify({ cached: !!cache.body, cacheAge: cache.body ? Math.round((now - cache.t) / 1000) : null, sources: out }));
+  }
   if (cache.body && now - cache.t < TTL_MS) return send(res, cache.body, "memory");
   try {
     inflight ||= (async () => {
-      let data;
-      try { data = await fromOpenSky(); }
-      catch (e) { data = await fromAdsbLol(); data.fallbackReason = String(e.message || e); }
+      const data = await loadAny();
       const body = JSON.stringify(data);
       cache = { t: Date.now(), body };
       return body;
@@ -108,6 +131,7 @@ module.exports = async function handler(req, res) {
     res.statusCode = 502;
     res.setHeader("Content-Type", "application/json; charset=utf-8");
     res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Cache-Control", "no-store");
     res.end(JSON.stringify({ error: String(e.message || e), rows: [] }));
   }
 };

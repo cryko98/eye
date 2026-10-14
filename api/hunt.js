@@ -17,7 +17,7 @@
  *   REWARD_WINNERS_PER_ROUND    winners paid per round (default 10)
  *   REWARD_SECRET_KEY           base58 secret key of the payout hot wallet (payouts off if unset)
  *   SOLANA_RPC_URL              optional RPC endpoint
- *   UPSTASH_REDIS_REST_URL/TOKEN  Upstash Redis (memory fallback without it)
+ *   UPSTASH_REDIS_REST_URL/TOKEN or KV_REST_API_URL/TOKEN  Upstash Redis (Vercel Marketplace names accepted; memory fallback without it)
  *
  * Actions:  GET  ?a=state[&wallet=]    GET ?a=near&lat&lon&h     GET ?a=hints[&wallet=]
  *           POST ?a=register {wallet, message, signature}
@@ -26,7 +26,7 @@
 const crypto = require("crypto");
 
 /* ---------------- storage ---------------- */
-const KV_URL = process.env.UPSTASH_REDIS_REST_URL, KV_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
+const KV_URL = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL, KV_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
 const mem = { h: new Map(), kv: new Map(), exp: new Map() };
 async function redis(...cmd) {
   if (!KV_URL) return memCmd(cmd);

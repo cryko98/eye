@@ -83,7 +83,7 @@ Server-side configuration (Vercel environment variables):
 | --- | --- |
 | `EGGS_JSON` | The eyes, as a JSON array. Keep it out of the repo. Types: `ground` (`lat`, `lon`, `radiusKm`, `revealKm`, `revealBelowM`), `cam` (`camIds`: ids from cameras.json as `source:key`), `sat` (`norad`), `plane` (`rule` with `callsignPrefix`, `country`, `minAlt`, `maxAlt`, `bbox`, `icao24`). Each eye also has `id`, `title`, `text`, `difficulty` and `hints`. |
 | `HUNT_SECRET` | Random string; signs ground-eye tokens and sessions. |
-| `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | Free Upstash Redis (Vercel Marketplace, Upstash). Without it the state lives in memory and resets on cold starts. |
+| `KV_REST_API_URL`, `KV_REST_API_TOKEN` (or `UPSTASH_REDIS_REST_URL`/`_TOKEN`) | Upstash Redis from the Vercel Marketplace; the integration sets these automatically. Without it the state lives in memory and resets on cold starts. |
 | `REWARD_SECRET_KEY` | base58 secret key of a dedicated hot wallet that holds the prize pool. Fund it only with what you intend to pay out. |
 | `REWARD_SOL`, `REWARD_WINNERS_PER_ROUND` | Prize per winner (default 0.2 SOL) and winners paid per round (default 10). |
 | `ROUND_MINUTES`, `ROUND_SIZE`, `ROUND_MIX`, `ROUND_TARGET` | Round length (60), eyes per round (10), easy/hard/brutal mix ("3,6,1"), eyes needed to win (10 = all). |

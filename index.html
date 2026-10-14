@@ -97,24 +97,24 @@
 
   <!-- ====== GLOBE CONTROLS ====== -->
   <div class="controls" id="controls">
-    <form class="ctl-group ctl-search" id="search-form">
+    <form class="ctl-group ctl-search" id="search-form" data-ctl="search">
       <input id="search" type="search" placeholder="lat, lon  ·  city  ·  place" autocomplete="off" spellcheck="false" />
       <button type="submit">GO</button>
     </form>
-    <div class="ctl-group">
+    <div class="ctl-group" data-ctl="view">
       <span class="ctl-label">VIEW</span>
       <button type="button" data-view="3d" class="on">3D</button>
       <button type="button" data-view="top">TOP</button>
       <button type="button" data-view="2d">2D MAP</button>
     </div>
-    <div class="ctl-group">
+    <div class="ctl-group" data-ctl="sensor">
       <span class="ctl-label">SENSOR</span>
       <button type="button" data-sensor="eo" class="on">EO</button>
       <button type="button" data-sensor="flir">FLIR</button>
       <button type="button" data-sensor="nvg">NVG</button>
       <button type="button" data-sensor="crt">CRT</button>
     </div>
-    <div class="ctl-group ctl-layers">
+    <div class="ctl-group ctl-layers" data-ctl="layers">
       <span class="ctl-label">LAYERS</span>
       <button type="button" data-layer="planes" class="on">AIRCRAFT</button>
       <button type="button" data-layer="cams" class="on">CAMERAS</button>
@@ -127,7 +127,7 @@
       <button type="button" data-layer="detect">DETECT</button>
       <button type="button" data-layer="traffic" data-tomtom hidden>TRAFFIC</button>
     </div>
-    <div class="ctl-group">
+    <div class="ctl-group" data-ctl="route">
       <span class="ctl-label">ROUTE</span>
       <select id="route-mode" aria-label="Route mode"><option value="foot">WALK</option><option value="bike">BIKE</option><option value="car">DRIVE</option></select>
       <button type="button" id="btn-route">DRAW</button>
@@ -135,7 +135,7 @@
       <button type="button" id="btn-route-clear">CLEAR</button>
       <span id="route-status" class="route-status"></span>
     </div>
-    <div class="ctl-group">
+    <div class="ctl-group" data-ctl="actions">
       <button type="button" id="btn-track">TRACK RANDOM</button>
       <button type="button" id="btn-cam">RANDOM CAM</button>
       <button type="button" id="btn-windy" data-windy hidden>WEBCAMS HERE</button>
@@ -145,6 +145,15 @@
       <button type="button" id="btn-reset">RESET</button>
     </div>
   </div>
+
+  <nav class="ctl-strip" id="ctl-strip" aria-label="Globe tools">
+    <button type="button" data-ctl="search">SEARCH</button>
+    <button type="button" data-ctl="view">VIEW</button>
+    <button type="button" data-ctl="sensor">SENSOR</button>
+    <button type="button" data-ctl="layers">LAYERS</button>
+    <button type="button" data-ctl="route">ROUTE</button>
+    <button type="button" data-ctl="actions">ACTIONS</button>
+  </nav>
 
   <div id="cesium-credits" class="credits"></div>
 
@@ -216,8 +225,9 @@
   <section class="panel panel-hunt" id="panel-hunt">
     <header class="panel-head"><span class="panel-tag">// HIDDEN EYES <b class="hunt-mini" id="hunt-mini">—</b></span><button type="button" class="panel-close" id="hunt-toggle">HIDE</button></header>
     <div class="panel-body">
-      <h2>Find the ten hidden eyes</h2>
-      <p class="panel-sub">Ten eyes are hidden across the planet: some on the ground, some riding cameras, satellites and aircraft. Connect a wallet, explore, and click whatever looks wrong. Three are easy, six are hard, one is brutal. Find all ten and the reward lands in your wallet automatically.</p>
+      <h2>Find the hidden eyes</h2>
+      <p class="panel-sub">Every hour a fresh set of eyes is hidden across the planet: on the ground, on cameras, satellites and aircraft. Three are easy, six are hard, one is brutal. Connect a wallet, explore, click whatever looks wrong. The first operators to hit the round target get paid in SOL, automatically.</p>
+      <div class="hunt-round"><span class="hunt-round-tag">ROUND <b id="hunt-round-id">—</b></span><span class="hunt-round-timer">NEW EYES IN <b id="hunt-countdown">--:--</b></span></div>
       <div class="hunt-status" id="hunt-status">Checking the hunt…</div>
       <div class="hunt-wallet">
         <button type="button" class="btn btn-primary btn-sm" id="hunt-connect">CONNECT WALLET</button>
@@ -230,9 +240,11 @@
       <div class="eyes" id="hunt-eyes"></div>
       <p class="nearby-head">LATEST INTEL HINT</p>
       <p class="hunt-hint" id="hunt-hint">Hints drop every few minutes while you hunt.</p>
-      <p class="nearby-head">LIVE LEADERBOARD · <span id="hunt-participants">0</span> OPERATORS · <span id="hunt-finishers">0</span> FINISHED</p>
+      <p class="nearby-head">THIS ROUND · <span id="hunt-winners">0</span>/<span id="hunt-max">—</span> REWARDS CLAIMED · <span id="hunt-participants">0</span> OPERATORS TOTAL</p>
       <table class="board"><thead><tr><th>#</th><th>WALLET</th><th>FOUND</th><th>STATUS</th></tr></thead><tbody id="hunt-lb"></tbody></table>
-      <p class="fine" id="hunt-rules">Free to play, one wallet per operator. Reward: <b id="hunt-reward">—</b> SOL to each of the first <b id="hunt-max">—</b> wallets that find all eyes, sent automatically from the project wallet (<span id="hunt-paid">0</span> paid so far). Scripting, API abuse or multi-wallet farming voids rewards. The signature you give only proves wallet ownership: no transaction, no fee, no approvals.</p>
+      <p class="nearby-head">ALL-TIME</p>
+      <table class="board"><thead><tr><th>#</th><th>WALLET</th><th>WINS</th><th>SOL</th></tr></thead><tbody id="hunt-alltime"></tbody></table>
+      <p class="fine" id="hunt-rules">Free to play, one wallet per operator. Each round the first <b id="hunt-max-2">—</b> wallets that find <b id="hunt-target">—</b> eyes receive <b id="hunt-reward">—</b> SOL from the project wallet, automatically. The stake rises as the hunt gets harder. Scripting, API abuse or multi-wallet farming voids rewards. The signature you give only proves wallet ownership: no transaction, no fee, no approvals.</p>
     </div>
   </section>
 
@@ -267,7 +279,7 @@
         <li><span class="idx">07</span><h3>Routes and flythroughs</h3><p>Switch on DRAW, click waypoints on the globe and the route snaps to real roads or footpaths (OSRM on OpenStreetMap). FLYTHROUGH then flies the camera along it at street height. DETECT paints screen-space boxes and IDs on every contact in frame.</p></li>
         <li><span class="idx">08</span><h3>Street level</h3><p>Hit STREET VIEW and click the spot you want to stand on, double-click anywhere, or open it from a camera's window: Google Street View opens right there and you can walk the streets from orbit.</p></li>
         <li><span class="idx">09</span><h3>Search and share</h3><p>Type coordinates or a place name to fly there. Hit SHARE and the camera, layers and tracked target serialize into a link.</p></li>
-        <li><span class="idx">10</span><h3>Hidden Eyes hunt</h3><p>Ten eyes are hidden on the globe, on cameras, satellites and aircraft. Connect a wallet, find them, climb the live leaderboard; the first operators to find all ten are paid in SOL automatically.</p></li>
+        <li><span class="idx">10</span><h3>Hidden Eyes hunt</h3><p>Every hour a fresh set of eyes is hidden on the globe, on cameras, satellites and aircraft. Connect a wallet, find them, climb the live leaderboard; each round the first operators to hit the target are paid in SOL automatically, and the stake rises as the hunt gets harder.</p></li>
         <li><span class="idx">11</span><h3>No bag left behind</h3><p>Every whale, every rug, every jeet. Tracked from 560 km up. $EYE is the ticker of the watchers.</p></li>
       </ul>
     </div>

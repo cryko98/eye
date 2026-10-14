@@ -75,7 +75,7 @@ Optional environment variables:
 
 ## Hidden Eyes treasure hunt
 
-Ten eyes are hidden on the globe, on cameras, satellites and aircraft. Players connect a Solana wallet (Phantom, Solflare, Backpack; on phones the page opens inside the wallet's own browser through deep links), explore, and click. Every selection is checked by `api/hunt.js`; the client and this repository never contain the hiding places. A live leaderboard lists wallets and finds; the first wallets to find all eyes are paid SOL automatically.
+The hunt runs in hourly rounds. `EGGS_JSON` is a pool of eyes; every round the server draws a fresh set from it (3 easy, 6 hard, 1 brutal by default), hidden on the globe, on cameras, satellites and aircraft. Players connect a Solana wallet (Phantom, Solflare, Backpack; on phones the page opens inside the wallet's own browser through deep links), explore, and click. Every selection is checked by `api/hunt.js`; the client and this repository never contain the hiding places. Within a round the first `REWARD_WINNERS_PER_ROUND` wallets that find `ROUND_TARGET` eyes are paid `REWARD_SOL` automatically; raise the stake any time by changing the variable. A live per-round leaderboard and an all-time table list wallets, finds, wins and SOL earned.
 
 Server-side configuration (Vercel environment variables):
 
@@ -85,7 +85,8 @@ Server-side configuration (Vercel environment variables):
 | `HUNT_SECRET` | Random string; signs ground-eye tokens and sessions. |
 | `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | Free Upstash Redis (Vercel Marketplace, Upstash). Without it the state lives in memory and resets on cold starts. |
 | `REWARD_SECRET_KEY` | base58 secret key of a dedicated hot wallet that holds the prize pool. Fund it only with what you intend to pay out. |
-| `REWARD_SOL`, `REWARD_MAX_WINNERS` | Prize per finisher (default 0.1) and how many finishers get paid (default 10). |
+| `REWARD_SOL`, `REWARD_WINNERS_PER_ROUND` | Prize per winner (default 0.2 SOL) and winners paid per round (default 10). |
+| `ROUND_MINUTES`, `ROUND_SIZE`, `ROUND_MIX`, `ROUND_TARGET` | Round length (60), eyes per round (10), easy/hard/brutal mix ("3,6,1"), eyes needed to win (10 = all). |
 | `SOLANA_RPC_URL` | Optional RPC endpoint for payouts. |
 
 Ground eyes only become visible (a small amber eye marker) when the view is within `revealKm` of them and below `revealBelowM` metres; probes are rate-limited per wallet and per IP. Locally, put the variables in `.env.local` (git-ignored).

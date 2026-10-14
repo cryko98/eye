@@ -55,6 +55,16 @@ function setMission(collapsed) { mission.classList.toggle("collapsed", collapsed
 missionToggle.addEventListener("click", () => setMission(!mission.classList.contains("collapsed")));
 if (window.innerWidth < 1500 || window.innerHeight < 700) setMission(true);
 
+/* ---------- mobile tool strip: one control group at a time ---------- */
+const strip = $("ctl-strip");
+function openCtl(name) {
+  document.querySelectorAll(".controls [data-ctl]").forEach((g) => g.classList.toggle("mobile-open", !!name && g.dataset.ctl === name));
+  strip.querySelectorAll("button").forEach((b) => b.classList.toggle("on", !!name && b.dataset.ctl === name));
+  if (name === "search") setTimeout(() => $("search").focus(), 50);
+}
+strip.querySelectorAll("button").forEach((b) => b.addEventListener("click", () => openCtl(b.classList.contains("on") ? null : b.dataset.ctl)));
+document.getElementById("cesium").addEventListener("pointerdown", () => { if (window.innerWidth <= 820) openCtl(null); }, { passive: true });
+
 /* ---------- windows ---------- */
 const panels = [...document.querySelectorAll(".panel")].filter((p) => p.id !== "panel-hunt"); // the hunt panel is docked, never part of the one-at-a-time group
 const huntPanel = $("panel-hunt");
@@ -65,6 +75,7 @@ function setHuntCollapsed(collapsed) {
   try { localStorage.setItem("eye-hunt-collapsed", collapsed ? "1" : "0"); } catch {}
 }
 function openPanel(name) {
+  if (window.innerWidth <= 820) openCtl(null);
   if (name === "hunt") { setHuntCollapsed(false); huntState(); dock.classList.remove("open"); return; }
   panels.forEach((p) => { p.hidden = p.id !== `panel-${name}`; });
   dock.querySelectorAll("button").forEach((b) => b.classList.toggle("active", b.dataset.panel === name));
@@ -242,20 +253,35 @@ async function huntState() {
 }
 function renderHunt() {
   const st = hunt.state; if (!st) return;
-  const total = st.total || 10, mine = st.me?.found || [];
-  $("hunt-status").textContent = !st.armed ? "THE HUNT IS NOT ARMED YET · THE EYES OPEN AT LAUNCH" : hunt.wallet ? (st.me?.finishedAt ? "ALL EYES FOUND · MISSION COMPLETE" : `HUNT LIVE · ${total - mine.length} EYES STILL HIDDEN FOR YOU`) : "HUNT LIVE · CONNECT A WALLET TO START LOGGING FINDS";
+  const rd = st.round || {}; const total = rd.total || 10, target = rd.target || total, mine = st.me?.found || [];
+  if (hunt.roundId != null && rd.id != null && hunt.roundId !== rd.id) { log(`NEW ROUND #${rd.id} · FRESH EYES HIDDEN · GO`); globe.resetEggMarkers?.(); loadHints(); }
+  hunt.roundId = rd.id; hunt.roundEnds = rd.endsAt; hunt.clockSkew = rd.now ? rd.now - Date.now() : 0;
+  $("hunt-round-id").textContent = rd.id != null ? `#${rd.id}` : "—";
+  const done = !!st.me?.doneAt;
+  $("hunt-status").textContent = !st.armed ? "THE HUNT IS NOT ARMED YET · THE EYES OPEN AT LAUNCH" : hunt.wallet ? (done ? (st.me?.paidTx ? "TARGET HIT THIS ROUND · REWARD SENT" : "TARGET HIT THIS ROUND · WELL DONE") : `ROUND LIVE · ${Math.max(0, target - mine.length)} MORE EYES TO THE TARGET`) : "ROUND LIVE · CONNECT A WALLET TO START LOGGING FINDS";
   $("hunt-connect").hidden = !!hunt.wallet; $("hunt-me").hidden = !hunt.wallet;
-  if (hunt.wallet) $("hunt-me").innerHTML = `OPERATOR <b>${shortW(hunt.wallet)}</b> · ${mine.length}/${total} EYES${st.me?.paidTx ? ` · REWARD PAID · <a href="https://solscan.io/tx/${esc(st.me.paidTx)}" target="_blank" rel="noopener">TX</a>` : ""} · <a href="#" id="hunt-disconnect">DISCONNECT</a>`;
+  if (hunt.wallet) $("hunt-me").innerHTML = `OPERATOR <b>${shortW(hunt.wallet)}</b> · ${mine.length}/${total} THIS ROUND · ${st.me?.wins || 0} WINS · ${st.me?.sol || 0} SOL${st.me?.paidTx ? ` · <a href="https://solscan.io/tx/${esc(st.me.paidTx)}" target="_blank" rel="noopener">LAST TX</a>` : ""} · <a href="#" id="hunt-disconnect">DISCONNECT</a>`;
   $("hunt-disconnect")?.addEventListener("click", (e) => { e.preventDefault(); hunt.wallet = null; hunt.session = null; localStorage.removeItem("eye-hunt"); huntState(); });
   const eyes = $("hunt-eyes"); eyes.innerHTML = "";
-  for (let i = 0; i < total; i++) { const f = mine.find((e) => e.idx === i); const d = document.createElement("div"); d.className = "eye" + (f ? " on" : ""); d.title = f ? `${f.title} (${f.difficulty})` : "Still hidden"; d.innerHTML = `<img src="/logo.svg" alt="" /><span>${pad(i + 1, 2)}</span>`; eyes.appendChild(d); }
-  $("hunt-participants").textContent = fmtInt(st.participants || 0); $("hunt-finishers").textContent = fmtInt(st.finishers || 0);
-  $("hunt-reward").textContent = st.payout?.sol ?? "—"; $("hunt-max").textContent = st.payout?.maxWinners ?? "—"; $("hunt-paid").textContent = st.payout?.paid ?? 0;
-  $("hunt-lb").innerHTML = (st.leaderboard || []).map((r, i) => `<tr${r.wallet === hunt.wallet ? ' style="color:#ffb800"' : ""}><td>${i + 1}</td><td class="dim">${shortW(r.wallet)}</td><td>${r.found}/${total}</td><td>${r.paid ? "PAID" : r.finished ? "COMPLETE" : "HUNTING"}</td></tr>`).join("") || `<tr><td colspan="4" class="dim">No operators yet. Be the first.</td></tr>`;
+  for (let i = 0; i < total; i++) { const f = mine.find((e) => e.idx === i); const d = document.createElement("div"); d.className = "eye" + (f ? " on" : ""); d.title = f ? `${f.title} (${f.difficulty})` : "Still hidden this round"; d.innerHTML = `<img src="/logo.svg" alt="" /><span>${pad(i + 1, 2)}</span>`; eyes.appendChild(d); }
+  $("hunt-participants").textContent = fmtInt(st.participants || 0);
+  $("hunt-winners").textContent = rd.winners ?? 0; $("hunt-max").textContent = rd.winnersMax ?? "—"; $("hunt-max-2").textContent = rd.winnersMax ?? "—";
+  $("hunt-target").textContent = target; $("hunt-reward").textContent = rd.rewardSol ?? "—";
+  $("hunt-lb").innerHTML = (st.leaderboard || []).map((r, i) => `<tr${r.wallet === hunt.wallet ? ' style="color:#ffb800"' : ""}><td>${i + 1}</td><td class="dim">${shortW(r.wallet)}</td><td>${r.found}/${total}</td><td>${r.paid ? "PAID" : r.done ? "TARGET HIT" : "HUNTING"}</td></tr>`).join("") || `<tr><td colspan="4" class="dim">No finds yet this round. Be the first.</td></tr>`;
+  $("hunt-alltime").innerHTML = (st.allTime || []).filter((r) => r.wins || r.found).slice(0, 10).map((r, i) => `<tr${r.wallet === hunt.wallet ? ' style="color:#ffb800"' : ""}><td>${i + 1}</td><td class="dim">${shortW(r.wallet)}</td><td>${r.wins}</td><td>${r.sol}</td></tr>`).join("") || `<tr><td colspan="4" class="dim">No winners yet.</td></tr>`;
   hud.eyes.textContent = hunt.wallet ? `${mine.length}/${total}` : "—";
   $("hunt-mini").textContent = !st.armed ? "SOON" : hunt.wallet ? `${mine.length}/${total}` : `${total} HIDDEN`;
+  tickCountdown();
   $("hunt-mobile").hidden = !(isMobile && !walletProvider() && !hunt.wallet);
 }
+function tickCountdown() {
+  if (!hunt.roundEnds) return;
+  const left = Math.max(0, hunt.roundEnds - (Date.now() + (hunt.clockSkew || 0)));
+  const m = Math.floor(left / 60000), sec = Math.floor((left % 60000) / 1000);
+  $("hunt-countdown").textContent = `${pad(m, 2)}:${pad(sec, 2)}`;
+  if (left === 0 && !hunt.rolling) { hunt.rolling = true; setTimeout(() => { hunt.rolling = false; huntState(); }, 1500); }
+}
+setInterval(tickCountdown, 1000);
 async function connectWallet() {
   const prov = walletProvider();
   if (!prov) {
@@ -290,9 +316,9 @@ async function huntProbe(kind, payload) {
 function showFound(j) {
   $("found-tag").textContent = `// EYE #${j.egg.idx + 1} FOUND · ${(j.egg.difficulty || "").toUpperCase()}`;
   $("found-title").textContent = j.egg.title; $("found-text").textContent = j.egg.text || "";
-  $("found-count").textContent = j.finished ? `ALL ${j.total} EYES FOUND · MISSION COMPLETE` : `${j.count} OF ${j.total} EYES IN YOUR LOG`;
-  const r = $("found-reward"); r.hidden = !j.finished;
-  if (j.finished) r.innerHTML = j.reward?.paid ? `REWARD SENT · ${j.reward.sol} SOL · <a href="https://solscan.io/tx/${esc(j.reward.tx)}" target="_blank" rel="noopener">VIEW TRANSACTION</a>` : `YOU FINISHED. ${j.reward?.reason ? "Payout: " + esc(j.reward.reason) + "." : ""} The team will settle rewards from the leaderboard.`;
+  $("found-count").textContent = j.done ? `TARGET HIT · ${j.count} OF ${j.total} EYES THIS ROUND${j.place ? ` · PLACE #${j.place}` : ""}` : `${j.count} OF ${j.total} EYES THIS ROUND · TARGET ${j.target}`;
+  const r = $("found-reward"); r.hidden = !j.done;
+  if (j.done) r.innerHTML = j.reward?.paid ? `REWARD SENT · ${j.reward.sol} SOL · <a href="https://solscan.io/tx/${esc(j.reward.tx)}" target="_blank" rel="noopener">VIEW TRANSACTION</a>` : `YOU HIT THE TARGET.${j.reward?.reason ? " " + esc(j.reward.reason) + "." : ""}${j.place && j.place <= (hunt.state?.round?.winnersMax || 10) && !j.reward?.paid ? " The team settles this round's rewards from the leaderboard." : ""}`;
   openPanel("found"); log(`EYE #${j.egg.idx + 1} ACQUIRED · ${j.egg.title.toUpperCase()}`);
 }
 async function loadHints() { try { const j = await fetch(`${CONFIG.huntUrl}?a=hints${hunt.wallet ? `&wallet=${hunt.wallet}` : ""}`).then((r) => r.json()); hunt.hints = j.hints || []; } catch {} }
@@ -666,12 +692,14 @@ const globe = {};
   const eggBB = scene.primitives.add(new Cesium.BillboardCollection({ scene }));
   const EGG_IMG = "data:image/svg+xml;utf8," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28"><path d="M2 14C6 7 22 7 26 14C22 21 6 21 2 14Z" fill="#0b1a1f" stroke="#ffb800" stroke-width="1.6"/><circle cx="14" cy="14" r="5" fill="#ffb800"/><circle cx="14" cy="14" r="2" fill="#04171a"/></svg>`);
   const eggSeen = new Set(); let eggLast = 0;
+  globe.resetEggMarkers = () => { eggBB.removeAll(); eggSeen.clear(); eggLast = 0; };
   async function pollEggs() {
     if (!hunt.state?.armed || Date.now() - eggLast < 3000) return; eggLast = Date.now();
     const hgt = camera.positionCartographic.height; if (hgt > 80_000) return;
     const { lat, lon } = globe.viewCentre();
     try {
       const j = await fetch(`${CONFIG.huntUrl}?a=near&lat=${lat.toFixed(3)}&lon=${lon.toFixed(3)}&h=${Math.round(hgt)}`).then((r) => r.json());
+      if (j.round != null && hunt.roundId != null && j.round !== hunt.roundId) huntState();
       for (const m of j.markers || []) { if (eggSeen.has(m.token)) continue; eggSeen.add(m.token);
         eggBB.add({ position: C3.fromDegrees(m.lon, m.lat, 12), image: EGG_IMG, width: 22, height: 22, scaleByDistance: new Cesium.NearFarScalar(2e3, 1.2, 8e4, 0.5), disableDepthTestDistance: Number.POSITIVE_INFINITY, id: { type: "egg", token: m.token, lat: m.lat, lon: m.lon } }); }
     } catch {}

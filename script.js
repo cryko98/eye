@@ -219,7 +219,7 @@ const globe = {};
 
   /* ---- imagery ---- */
   const GIBS = (layer, ext, time = "") => `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/${layer}/default/${time ? time + "/" : ""}GoogleMapsCompatible_Level8/{z}/{y}/{x}.${ext}`;
-  let lightsLayer = null, radarLayer = null;
+  let lightsLayer = null, radarLayer = null, labelsLayer = null;
   (async () => {
     try {
       const p = await Cesium.ArcGisMapServerImageryProvider.fromUrl("https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer", { enablePickFeatures: false });
@@ -230,7 +230,13 @@ const globe = {};
     // VIIRS city lights, only on the night side of the terminator.
     lightsLayer = viewer.imageryLayers.addImageryProvider(new Cesium.UrlTemplateImageryProvider({ url: GIBS("VIIRS_Black_Marble", "png", "2016-01-01"), maximumLevel: 8, credit: "NASA GIBS Black Marble" }));
     lightsLayer.dayAlpha = 0.0; lightsLayer.nightAlpha = 0.65; lightsLayer.brightness = 2.2;
+    // Country borders, admin boundaries and place names (Esri reference overlay).
+    try {
+      labelsLayer = viewer.imageryLayers.addImageryProvider(await Cesium.ArcGisMapServerImageryProvider.fromUrl("https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer", { enablePickFeatures: false }));
+      labelsLayer.show = layerState.labels;
+    } catch { log("BORDERS + NAMES OVERLAY UNAVAILABLE"); }
     if (radarLayer) viewer.imageryLayers.raiseToTop(radarLayer);
+    if (labelsLayer) viewer.imageryLayers.raiseToTop(labelsLayer);
   })();
   // Optional: terrain + 3D buildings (Cesium ion) and Google Photorealistic 3D Tiles.
   (async () => {
@@ -284,7 +290,7 @@ const globe = {};
   let cablesDs = null;
   const PLANE_IMG = "data:image/svg+xml;utf8," + encodeURIComponent(
     `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><path d="M12 1.5 L13.6 8.5 L22.5 13 L22.5 15.2 L13.8 12.4 L13.3 18 L16.2 20.2 L16.2 22 L12 20.8 L7.8 22 L7.8 20.2 L10.7 18 L10.2 12.4 L1.5 15.2 L1.5 13 L10.4 8.5 Z" fill="#22e6e6" stroke="#04171a" stroke-width="0.8"/></svg>`);
-  const layerState = { planes: true, cams: true, sats: true, quakes: true, radar: false, lights: true, cables: false };
+  const layerState = { planes: true, cams: true, labels: true, sats: true, quakes: true, radar: false, lights: true, cables: false };
   async function setLayer(name, on, quiet) {
     layerState[name] = on;
     document.querySelector(`[data-layer="${name}"]`)?.classList.toggle("on", on);
@@ -293,13 +299,14 @@ const globe = {};
     if (name === "sats") { satPoints.show = on; satLabels.show = on; }
     if (name === "quakes") quakePoints.show = on;
     if (name === "lights" && lightsLayer) lightsLayer.show = on;
+    if (name === "labels" && labelsLayer) labelsLayer.show = on;
     if (name === "radar") {
       if (on && !radarLayer) {
         try {
           const j = await fetch("https://api.rainviewer.com/public/weather-maps.json").then((r) => r.json());
           const frame = j.radar.past[j.radar.past.length - 1];
           radarLayer = viewer.imageryLayers.addImageryProvider(new Cesium.UrlTemplateImageryProvider({ url: `${j.host}${frame.path}/256/{z}/{x}/{y}/2/1_1.png`, maximumLevel: 7, credit: "RainViewer" }));
-          radarLayer.alpha = 0.78;
+          radarLayer.alpha = 0.78; if (labelsLayer) viewer.imageryLayers.raiseToTop(labelsLayer);
           log(`WEATHER RADAR · ${new Date(frame.time * 1000).toISOString().slice(11, 16)}Z · RAINVIEWER`);
         } catch { log("RADAR FEED UNAVAILABLE"); }
       } else if (radarLayer) radarLayer.show = on;
@@ -519,9 +526,18 @@ const globe = {};
   function pauseRotation() { rotating = false; idleAt = Date.now(); }
   ["pointerdown", "wheel", "touchstart"].forEach((ev) => scene.canvas.addEventListener(ev, pauseRotation, { passive: true }));
   scene.canvas.style.cursor = "grab";
-  let lastHud = 0;
+  let lastHud = 0, flyUntil = 0;
+  for (const m of ["flyTo", "flyToBoundingSphere"]) { const orig = camera[m].bind(camera); camera[m] = (a, b) => { const o = m === "flyTo" ? a : b; flyUntil = Date.now() + (((o && o.duration) ?? 3) * 1000) + 150; return orig(a, b); }; }
   scene.postRender.addEventListener(() => {
     const now = Date.now();
+    // Far from Earth, ease the view back to nadir so the whole planet stays centred while zooming out.
+    if (!follow && !cockpit && scene.mode === Cesium.SceneMode.SCENE3D && now > flyUntil) {
+      const h = camera.positionCartographic.height;
+      if (h > 2.5e6 && camera.pitch > -CM.PI_OVER_TWO + 0.01) {
+        const k = Math.min(1, (h - 2.5e6) / 3e6) * 0.12;
+        camera.setView({ destination: C3.clone(camera.position), orientation: { heading: camera.heading, pitch: CM.lerp(camera.pitch, -CM.PI_OVER_TWO, k), roll: 0 } });
+      }
+    }
     const canRotate = scene.mode === Cesium.SceneMode.SCENE3D && !follow && !cockpit && !state.selected;
     if (!rotating && !reduceMotion && canRotate && now - idleAt > 25000 && camera.positionCartographic.height > 3e6) rotating = true;
     if (rotating && canRotate) camera.rotate(C3.UNIT_Z, -0.0006);

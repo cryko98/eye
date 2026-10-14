@@ -3,3 +3,6 @@ Thumbs.db
 .vercel
 node_modules
 .claude
+.env
+.env*.local
+*.private.json

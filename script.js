@@ -13,6 +13,7 @@ const CONFIG = {
   flightsUrl: "/api/flights",                         // Vercel function (api/flights.js)
   flightsRefreshMs: 60_000,
   camerasUrl: "/cameras.json",
+  huntUrl: "/api/hunt",                               // Hidden Eyes hunt (api/hunt.js)
   estoniaUrl: "/api/estonia",                         // Vercel function (api/estonia.js)
   windyUrl: "/api/windy",                             // optional worldwide webcams (set WINDY_API_KEY on Vercel)
   // Optional upgrades (both free tiers): a Cesium ion token adds real 3D terrain and
@@ -62,6 +63,7 @@ function openPanel(name) {
   dock.classList.remove("open");
   if (name === "cameras") buildWall();
   if (name === "flights") buildBoard();
+  if (name === "hunt") huntState();
   if (window.innerWidth < 820) setMission(true);
 }
 function closePanels() { panels.forEach((p) => (p.hidden = true)); dock.querySelectorAll("button").forEach((b) => b.classList.remove("active")); }
@@ -69,10 +71,11 @@ dock.querySelectorAll("[data-panel]").forEach((b) => b.addEventListener("click",
   const already = !$(`panel-${b.dataset.panel}`).hidden; already ? closePanels() : openPanel(b.dataset.panel);
 }));
 document.querySelectorAll("[data-close]").forEach((b) => b.addEventListener("click", closePanels));
+document.querySelectorAll("[data-panel-open]").forEach((b) => b.addEventListener("click", () => openPanel(b.dataset.panelOpen)));
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") { closePanels(); globe.clearTarget?.(); globe.stopFly?.(); } });
 
 /* ---------- HUD ---------- */
-const hud = Object.fromEntries(["clock", "mode", "alt", "lat", "lon", "planes", "cams", "sats", "quakes", "feed", "sensor", "log"].map((k) => [k, $(`hud-${k}`)]));
+const hud = Object.fromEntries(["clock", "mode", "alt", "lat", "lon", "planes", "cams", "sats", "quakes", "feed", "sensor", "log", "eyes"].map((k) => [k, $(`hud-${k}`)]));
 const logQueue = [];
 function log(msg) { logQueue.push(msg); if (logQueue.length > 6) logQueue.shift(); }
 setInterval(() => { if (logQueue.length) hud.log.textContent = `> ${logQueue.shift()}`; }, 2200);
@@ -167,11 +170,13 @@ setInterval(loadFlights, CONFIG.flightsRefreshMs);
 /* ---------- data: satellites (CelesTrak TLE + satellite.js) ---------- */
 const satsReady = (async () => {
   if (typeof satellite === "undefined") return [];
-  const groups = ["stations", "visual"];
+  // One cached TLE bundle from our own function (CelesTrak limits direct fetches); direct groups only as a fallback.
+  const sources = ["/api/satellites", "https://celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=tle", "https://celestrak.org/NORAD/elements/gp.php?GROUP=visual&FORMAT=tle"];
   const seen = new Map();
-  for (const g of groups) {
+  for (const g of sources) {
+    if (g !== sources[0] && seen.size) break;
     try {
-      const txt = await fetch(`https://celestrak.org/NORAD/elements/gp.php?GROUP=${g}&FORMAT=tle`).then((r) => r.text());
+      const txt = await fetch(g).then((r) => (r.ok ? r.text() : ""));
       const lines = txt.split(/\r?\n/).map((l) => l.trimEnd()).filter(Boolean);
       for (let i = 0; i + 2 < lines.length; i += 3) {
         const name = lines[i].trim(), l1 = lines[i + 1], l2 = lines[i + 2];
@@ -179,7 +184,7 @@ const satsReady = (async () => {
         const norad = l1.slice(2, 7).trim();
         if (seen.has(norad)) continue;
         const rec = satellite.twoline2satrec(l1, l2);
-        seen.set(norad, { norad, name, rec, group: g, period: (2 * Math.PI) / rec.no });
+        seen.set(norad, { norad, name, rec, group: /^1 /.test(l1) && seen.size < 40 ? "stations" : "visual", period: (2 * Math.PI) / rec.no });
       }
     } catch {}
   }
@@ -189,6 +194,7 @@ const satsReady = (async () => {
   return state.sats;
 })();
 function satGeo(s, date = new Date()) {
+  if (!s || !s.rec) return s?.geo || null;
   const pv = satellite.propagate(s.rec, date);
   if (!pv.position || typeof pv.position !== "object") return null;
   const gmst = satellite.gstime(date), g = satellite.eciToGeodetic(pv.position, gmst);
@@ -204,6 +210,88 @@ const quakesReady = fetch("https://earthquake.usgs.gov/earthquakes/feed/v1.0/sum
   if (big) log(`SEISMIC · ${state.quakes.length} EVENTS 24H · MAX M${big.mag.toFixed(1)} ${big.place?.toUpperCase() || ""}`);
   return state.quakes;
 }).catch(() => { hud.quakes.textContent = "ERR"; return []; });
+
+/* =========================================================
+   HIDDEN EYES HUNT — client
+   ========================================================= */
+const hunt = { wallet: null, session: null, state: null, provider: null, hints: [], hintTimer: null, pollTimer: null };
+const shortW = (w) => `${w.slice(0, 4)}…${w.slice(-4)}`;
+const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+try { const saved = JSON.parse(localStorage.getItem("eye-hunt") || "null"); if (saved?.wallet && saved?.session) { hunt.wallet = saved.wallet; hunt.session = saved.session; } } catch {}
+function walletProvider() {
+  const w = window, cands = [w.phantom?.solana, w.solflare, w.backpack?.solana, w.solana].filter(Boolean);
+  return cands.find((p) => typeof p.connect === "function" && typeof p.signMessage === "function") || null;
+}
+async function huntState() {
+  try {
+    const j = await fetch(`${CONFIG.huntUrl}?a=state${hunt.wallet ? `&wallet=${hunt.wallet}` : ""}`, { cache: "no-store" }).then((r) => r.json());
+    hunt.state = j; renderHunt();
+  } catch { $("hunt-status").textContent = "HUNT SERVER UNREACHABLE"; }
+}
+function renderHunt() {
+  const st = hunt.state; if (!st) return;
+  const total = st.total || 10, mine = st.me?.found || [];
+  $("hunt-status").textContent = !st.armed ? "THE HUNT IS NOT ARMED YET · THE EYES OPEN AT LAUNCH" : hunt.wallet ? (st.me?.finishedAt ? "ALL EYES FOUND · MISSION COMPLETE" : `HUNT LIVE · ${total - mine.length} EYES STILL HIDDEN FOR YOU`) : "HUNT LIVE · CONNECT A WALLET TO START LOGGING FINDS";
+  $("hunt-connect").hidden = !!hunt.wallet; $("hunt-me").hidden = !hunt.wallet;
+  if (hunt.wallet) $("hunt-me").innerHTML = `OPERATOR <b>${shortW(hunt.wallet)}</b> · ${mine.length}/${total} EYES${st.me?.paidTx ? ` · REWARD PAID · <a href="https://solscan.io/tx/${esc(st.me.paidTx)}" target="_blank" rel="noopener">TX</a>` : ""} · <a href="#" id="hunt-disconnect">DISCONNECT</a>`;
+  $("hunt-disconnect")?.addEventListener("click", (e) => { e.preventDefault(); hunt.wallet = null; hunt.session = null; localStorage.removeItem("eye-hunt"); huntState(); });
+  const eyes = $("hunt-eyes"); eyes.innerHTML = "";
+  for (let i = 0; i < total; i++) { const f = mine.find((e) => e.idx === i); const d = document.createElement("div"); d.className = "eye" + (f ? " on" : ""); d.title = f ? `${f.title} (${f.difficulty})` : "Still hidden"; d.innerHTML = `<img src="/logo.svg" alt="" /><span>${pad(i + 1, 2)}</span>`; eyes.appendChild(d); }
+  $("hunt-participants").textContent = fmtInt(st.participants || 0); $("hunt-finishers").textContent = fmtInt(st.finishers || 0);
+  $("hunt-reward").textContent = st.payout?.sol ?? "—"; $("hunt-max").textContent = st.payout?.maxWinners ?? "—"; $("hunt-paid").textContent = st.payout?.paid ?? 0;
+  $("hunt-lb").innerHTML = (st.leaderboard || []).map((r, i) => `<tr${r.wallet === hunt.wallet ? ' style="color:#ffb800"' : ""}><td>${i + 1}</td><td class="dim">${shortW(r.wallet)}</td><td>${r.found}/${total}</td><td>${r.paid ? "PAID" : r.finished ? "COMPLETE" : "HUNTING"}</td></tr>`).join("") || `<tr><td colspan="4" class="dim">No operators yet. Be the first.</td></tr>`;
+  hud.eyes.textContent = hunt.wallet ? `${mine.length}/${total}` : "—";
+  $("hunt-mobile").hidden = !(isMobile && !walletProvider() && !hunt.wallet);
+}
+async function connectWallet() {
+  const prov = walletProvider();
+  if (!prov) {
+    if (isMobile) { $("hunt-mobile").hidden = false; log("OPEN THIS PAGE INSIDE PHANTOM OR SOLFLARE TO CONNECT"); }
+    else { log("NO SOLANA WALLET FOUND · INSTALL PHANTOM, SOLFLARE OR BACKPACK"); window.open("https://phantom.app/download", "_blank", "noopener"); }
+    return;
+  }
+  try {
+    const resp = await prov.connect(); const pk = (resp?.publicKey || prov.publicKey).toString();
+    const message = `God's Eye View · Hidden Eyes hunt\nWallet: ${pk}\nDate: ${new Date().toISOString().slice(0, 10)}\nThis signature only proves you own this wallet. No transaction, no fee, no approvals.`;
+    const signed = await prov.signMessage(new TextEncoder().encode(message), "utf8");
+    const bytes = signed?.signature || signed; const b64 = btoa(String.fromCharCode(...new Uint8Array(bytes)));
+    const j = await fetch(`${CONFIG.huntUrl}?a=register`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ wallet: pk, message, signature: b64 }) }).then((r) => r.json());
+    if (j.error) return log(`WALLET · ${String(j.error).toUpperCase()}`);
+    hunt.wallet = pk; hunt.session = j.session; hunt.provider = prov;
+    try { localStorage.setItem("eye-hunt", JSON.stringify({ wallet: pk, session: j.session })); } catch {}
+    log(`OPERATOR LINKED · ${shortW(pk)} · GOOD HUNTING`); huntState(); startHints();
+  } catch (e) { log(`WALLET · ${String(e?.message || "CONNECTION CANCELLED").toUpperCase().slice(0, 60)}`); }
+}
+$("hunt-connect").addEventListener("click", connectWallet);
+(() => { const here = encodeURIComponent(location.href), ref = encodeURIComponent(location.origin);
+  $("hunt-phantom").href = `https://phantom.app/ul/browse/${here}?ref=${ref}`; $("hunt-solflare").href = `https://solflare.com/ul/v1/browse/${here}?ref=${ref}`; })();
+async function huntProbe(kind, payload) {
+  if (!hunt.wallet || !hunt.session || !hunt.state?.armed) return;
+  try {
+    const j = await fetch(`${CONFIG.huntUrl}?a=probe`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ wallet: hunt.wallet, session: hunt.session, kind, ...payload }) }).then((r) => r.json());
+    if (j.error === "connect your wallet first" || j.error === "not registered") { hunt.wallet = null; hunt.session = null; localStorage.removeItem("eye-hunt"); renderHunt(); return; }
+    if (j.found) { showFound(j); huntState(); }
+    else if (j.already) log(`EYE #${j.already.idx + 1} · ALREADY IN YOUR LOG`);
+  } catch {}
+}
+function showFound(j) {
+  $("found-tag").textContent = `// EYE #${j.egg.idx + 1} FOUND · ${(j.egg.difficulty || "").toUpperCase()}`;
+  $("found-title").textContent = j.egg.title; $("found-text").textContent = j.egg.text || "";
+  $("found-count").textContent = j.finished ? `ALL ${j.total} EYES FOUND · MISSION COMPLETE` : `${j.count} OF ${j.total} EYES IN YOUR LOG`;
+  const r = $("found-reward"); r.hidden = !j.finished;
+  if (j.finished) r.innerHTML = j.reward?.paid ? `REWARD SENT · ${j.reward.sol} SOL · <a href="https://solscan.io/tx/${esc(j.reward.tx)}" target="_blank" rel="noopener">VIEW TRANSACTION</a>` : `YOU FINISHED. ${j.reward?.reason ? "Payout: " + esc(j.reward.reason) + "." : ""} The team will settle rewards from the leaderboard.`;
+  openPanel("found"); log(`EYE #${j.egg.idx + 1} ACQUIRED · ${j.egg.title.toUpperCase()}`);
+}
+async function loadHints() { try { const j = await fetch(`${CONFIG.huntUrl}?a=hints${hunt.wallet ? `&wallet=${hunt.wallet}` : ""}`).then((r) => r.json()); hunt.hints = j.hints || []; } catch {} }
+function showHint() {
+  if (!hunt.hints.length || !hunt.state?.armed) return;
+  const pick = rand(hunt.hints); $("hint-text").textContent = pick.hint; $("hunt-hint").textContent = pick.hint; $("hint-toast").hidden = false;
+  clearTimeout(hunt.hintHide); hunt.hintHide = setTimeout(() => ($("hint-toast").hidden = true), 25000);
+}
+function startHints() { if (hunt.hintTimer) return; loadHints(); setTimeout(showHint, 60_000); hunt.hintTimer = setInterval(() => { loadHints(); showHint(); }, 240_000); }
+$("hint-close").addEventListener("click", () => ($("hint-toast").hidden = true));
+huntState(); startHints();
+setInterval(() => huntState(), 45_000);
 
 /* =========================================================
    GLOBE (CesiumJS)
@@ -557,6 +645,25 @@ const globe = {};
   globe.selectSat = (s, fly = true) => showTarget({ type: "sat", s }, fly);
   globe.selectQuake = (q, fly = true) => showTarget({ type: "quake", q }, fly);
   globe.clearTarget = () => { marker.show = false; state.selected = null; clearInterval(imgTimer); stopFollow(); T.nearby.hidden = true; };
+  // Hidden Eyes: every selection is also a probe; the server alone knows what is hidden where.
+  { const sp = globe.selectPlane, sc = globe.selectCam, ss = globe.selectSat;
+    globe.selectPlane = (p, fly) => { sp(p, fly); huntProbe("plane", { icao: p.icao, cs: p.cs, alt: p.alt, lat: p.lat, lon: p.lon, country: p.country }); };
+    globe.selectCam = (c, fly) => { sc(c, fly); huntProbe("cam", { camId: c.id }); };
+    globe.selectSat = (sat, fly) => { ss(sat, fly); huntProbe("sat", { norad: sat.norad }); }; }
+  const eggBB = scene.primitives.add(new Cesium.BillboardCollection({ scene }));
+  const EGG_IMG = "data:image/svg+xml;utf8," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28"><path d="M2 14C6 7 22 7 26 14C22 21 6 21 2 14Z" fill="#0b1a1f" stroke="#ffb800" stroke-width="1.6"/><circle cx="14" cy="14" r="5" fill="#ffb800"/><circle cx="14" cy="14" r="2" fill="#04171a"/></svg>`);
+  const eggSeen = new Set(); let eggLast = 0;
+  async function pollEggs() {
+    if (!hunt.state?.armed || Date.now() - eggLast < 3000) return; eggLast = Date.now();
+    const hgt = camera.positionCartographic.height; if (hgt > 80_000) return;
+    const { lat, lon } = globe.viewCentre();
+    try {
+      const j = await fetch(`${CONFIG.huntUrl}?a=near&lat=${lat.toFixed(3)}&lon=${lon.toFixed(3)}&h=${Math.round(hgt)}`).then((r) => r.json());
+      for (const m of j.markers || []) { if (eggSeen.has(m.token)) continue; eggSeen.add(m.token);
+        eggBB.add({ position: C3.fromDegrees(m.lon, m.lat, 12), image: EGG_IMG, width: 22, height: 22, scaleByDistance: new Cesium.NearFarScalar(2e3, 1.2, 8e4, 0.5), disableDepthTestDistance: Number.POSITIVE_INFINITY, id: { type: "egg", token: m.token, lat: m.lat, lon: m.lon } }); }
+    } catch {}
+  }
+  camera.moveEnd.addEventListener(pollEggs); setInterval(pollEggs, 4000);
   T.panel.querySelector("[data-close]").addEventListener("click", globe.clearTarget);
   $("target-fly").addEventListener("click", () => state.selected && flyToSel(state.selected));
   $("target-next").addEventListener("click", () => {
@@ -604,6 +711,7 @@ const globe = {};
       if (svPick) { const p = camera.pickEllipsoid(m.position); if (p) { const c = Cesium.Cartographic.fromCartesian(p); setSvPick(false); globe.openStreetView(CM.toDegrees(c.latitude), CM.toDegrees(c.longitude), CM.toDegrees(camera.heading)); } return; }
       if (route.drawing) addWaypoint(m.position); return;
     }
+    if (id.type === "egg") { huntProbe("ground", { token: id.token, lat: id.lat, lon: id.lon }); if (!hunt.wallet) { openPanel("hunt"); log("AN EYE · CONNECT A WALLET TO LOG IT"); } return; }
     if (id.type === "cam") globe.selectCam(id.cam); else if (id.type === "plane") globe.selectPlane(id.p);
     else if (id.type === "sat") globe.selectSat(id.s); else if (id.type === "quake") globe.selectQuake(id.q);
     else if (id.properties?.name) log(`CABLE · ${String(id.name || id.properties.name).toUpperCase()}`);

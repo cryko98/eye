@@ -2,5 +2,12 @@
   "name": "gods-eye-view-eye",
   "private": true,
   "version": "1.0.0",
-  "scripts": { "dev": "node dev-server.js" }
+  "scripts": {
+    "dev": "node dev-server.js"
+  },
+  "dependencies": {
+    "@solana/web3.js": "^1.95.3",
+    "bs58": "^5.0.0",
+    "tweetnacl": "^1.0.3"
+  }
 }

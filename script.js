@@ -3,10 +3,10 @@
    Single-screen live globe. Edit CONFIG before launch.
    ========================================================= */
 const CONFIG = {
-  contractAddress: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxx",   // paste the real CA here at launch
+  contractAddress: "451461U9h9DyZGtA1MynE2oZJMosXE8GyfbtqqHepump",
   links: {
-    buy: "https://pump.fun",                          // pump.fun / Raydium / Jupiter link
-    chart: "https://dexscreener.com/solana",          // Dexscreener pair link
+    buy: "https://pump.fun/coin/451461U9h9DyZGtA1MynE2oZJMosXE8GyfbtqqHepump",
+    chart: "https://dexscreener.com/solana/451461U9h9DyZGtA1MynE2oZJMosXE8GyfbtqqHepump",
     x: "https://x.com",                               // X / Twitter profile
     telegram: "https://t.me",                         // Telegram group
   },

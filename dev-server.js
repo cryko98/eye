@@ -14,7 +14,7 @@ try {
 
 const API = {
   flights: require("./api/flights.js"), estonia: require("./api/estonia.js"), singapore: require("./api/singapore.js"),
-  windy: require("./api/windy.js"), news: require("./api/news.js"), hunt: require("./api/hunt.js"), satellites: require("./api/satellites.js"), config: require("./api/config.js"),
+  windy: require("./api/windy.js"), news: require("./api/news.js"), satellites: require("./api/satellites.js"), config: require("./api/config.js"),
 };
 
 const ROOT = __dirname;

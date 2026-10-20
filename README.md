@@ -73,6 +73,24 @@ Optional environment variables:
 - `WINDY_API_KEY`: a free key from https://api.windy.com/keys turns on the **WEBCAMS HERE** button and the `api/windy.js` function, which pulls Windy.com webcams (tens of thousands worldwide, including Africa, Asia and South America) around the current view and around every search result. Attribution "Webcams by Windy.com" is shown in the Socials window.
 - `OPENSKY_CLIENT_ID` and `OPENSKY_CLIENT_SECRET` (OAuth2 client credentials from a free OpenSky account) raise the aircraft-feed quota. Without them anonymous access is used and, if OpenSky throttles, the function falls back to adsb.lol samples around major hubs.
 
+## Hidden Eyes treasure hunt
+
+The hunt runs in hourly rounds. `EGGS_JSON` is a pool of eyes; every round the server draws a fresh set from it (3 easy, 6 hard, 1 brutal by default), hidden on the globe, on cameras, satellites and aircraft. Players connect a Solana wallet (Phantom, Solflare, Backpack; on phones the page opens inside the wallet's own browser through deep links), explore, and click. Every selection is checked by `api/hunt.js`; the client and this repository never contain the hiding places. Within a round the first `REWARD_WINNERS_PER_ROUND` wallets that find `ROUND_TARGET` eyes are paid `REWARD_SOL` automatically; raise the stake any time by changing the variable. A live per-round leaderboard and an all-time table list wallets, finds, wins and SOL earned.
+
+Server-side configuration (Vercel environment variables):
+
+| Variable | Purpose |
+| --- | --- |
+| `EGGS_JSON` | The eyes, as a JSON array. Keep it out of the repo. Types: `ground` (`lat`, `lon`, `radiusKm`, `revealKm`, `revealBelowM`), `cam` (`camIds`: ids from cameras.json as `source:key`), `sat` (`norad`), `plane` (`rule` with `callsignPrefix`, `country`, `minAlt`, `maxAlt`, `bbox`, `icao24`). Each eye also has `id`, `title`, `text`, `difficulty` and `hints`. |
+| `HUNT_SECRET` | Random string; signs ground-eye tokens and sessions. |
+| `KV_REST_API_URL`, `KV_REST_API_TOKEN` (or `UPSTASH_REDIS_REST_URL`/`_TOKEN`) | Upstash Redis from the Vercel Marketplace; the integration sets these automatically. Without it the state lives in memory and resets on cold starts. |
+| `REWARD_SECRET_KEY` | base58 secret key of a dedicated hot wallet that holds the prize pool. Fund it only with what you intend to pay out. |
+| `REWARD_SOL`, `REWARD_WINNERS_PER_ROUND` | Prize per winner (default 0.2 SOL) and winners paid per round (default 10). |
+| `ROUND_MINUTES`, `ROUND_SIZE`, `ROUND_MIX`, `ROUND_TARGET` | Round length (60), eyes per round (10), easy/hard/brutal mix ("3,6,1"), eyes needed to win (10 = all). |
+| `SOLANA_RPC_URL` | Optional RPC endpoint for payouts. |
+
+Ground eyes only become visible (a small amber eye marker) when the view is within `revealKm` of them and below `revealBelowM` metres; probes are rate-limited per wallet and per IP. Locally, put the variables in `.env.local` (git-ignored).
+
 ## Data credits
 
 OpenSky Network, adsb.lol, CelesTrak, USGS, RainViewer, TeleGeography, FDOT FL511, CTDOT CTroads, Idaho 511, Yukon 511, foto-webcam.eu, Georgia 511, PennDOT 511PA, ADOT AZ511, NDOT Nevada Roads, Louisiana 511, Alaska 511, Ontario 511 (OGL Ontario), Alberta 511, DriveBC (OGL BC), NZTA, LTA via data.gov.sg, TfL Open Data, Hong Kong Transport Department (data.gov.hk), Live Traffic NSW (CC BY 4.0), City of Austin Open Data, Oregon DOT TripCheck, Open Calgary, Statens vegvesen (NLOD 2.0), Fintraffic Digitraffic (CC BY 4.0), Transpordiamet / Tarktee, City of Tallinn, Esri and partners, NASA GIBS, Photon (komoot), CesiumJS.

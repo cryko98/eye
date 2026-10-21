@@ -460,7 +460,8 @@ const globe = {};
   ];
   let lodIdx = 2, lodCond;
   function applyLod(height) {
-    const idx = LOD.findIndex((l) => height < l.below); if (idx === lodIdx) return;
+    if (!Number.isFinite(height)) return; // undefined/NaN while the scene morphs between 2D and 3D
+    const idx = LOD.findIndex((l) => height < l.below); if (idx < 0 || idx === lodIdx) return;
     lodIdx = idx; lodCond = LOD[idx].cond;
     for (let i = 0; i < planes.length; i++) planes.get(i).distanceDisplayCondition = lodCond;
     for (let i = 0; i < satPoints.length; i++) satPoints.get(i).distanceDisplayCondition = lodCond;

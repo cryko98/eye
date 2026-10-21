@@ -108,7 +108,7 @@ setInterval(() => { if (!logQueue.length) log(rand(BANTER)); }, 11000);
 
 /* ---------- state ---------- */
 const state = { cams: [], camSources: {}, planes: [], sats: [], quakes: [], feed: "INIT", feedTime: 0, source: "", selected: null };
-const SRC_FLAG = { tallinn: "Tallinn", ee: "Estonia", fi: "Finland", no: "Norway", tfl: "London", it: "Italy", hu: "Hungary", hk: "Hong Kong", sg: "Singapore", nsw: "Sydney / NSW", nz: "New Zealand", austin: "Austin", or: "Oregon", ga: "Georgia", pa: "Pennsylvania", az: "Arizona", nv: "Nevada", la: "Louisiana", ak: "Alaska", on: "Ontario", ab: "Alberta", bc: "British Columbia", calgary: "Calgary", fl: "Florida", ct: "Connecticut", id: "Idaho", yt: "Yukon", fw: "Alps weather", se: "Sweden", osm: "OpenStreetMap", windy: "Windy" , at: "Austria", cz: "Czech Republic", de: "Germany", es: "Spain", fr: "France", ie: "Ireland", is: "Iceland", lt: "Lithuania"};
+const SRC_FLAG = { tallinn: "Tallinn", ee: "Estonia", fi: "Finland", no: "Norway", tfl: "London", it: "Italy", hu: "Hungary", hk: "Hong Kong", sg: "Singapore", nsw: "Sydney / NSW", nz: "New Zealand", austin: "Austin", or: "Oregon", ga: "Georgia", pa: "Pennsylvania", az: "Arizona", nv: "Nevada", la: "Louisiana", ak: "Alaska", on: "Ontario", ab: "Alberta", bc: "British Columbia", calgary: "Calgary", fl: "Florida", ct: "Connecticut", id: "Idaho", yt: "Yukon", fw: "Alps weather", se: "Sweden", osm: "OpenStreetMap", windy: "Windy" , at: "Austria", cz: "Czech Republic", de: "Germany", es: "Spain", fr: "France", ie: "Ireland", is: "Iceland"};
 
 /* ---------- data: cameras ---------- */
 const camsReady = fetch(CONFIG.camerasUrl).then((r) => r.json()).then((j) => {
@@ -122,7 +122,8 @@ const camsReady = fetch(CONFIG.camerasUrl).then((r) => r.json()).then((j) => {
 }).catch(() => { hud.cams.textContent = "ERR"; return []; });
 const dynCache = {};
 /* ---------- Swedish cameras (Trafikverket open data, loaded at runtime; needs TRAFIKVERKET_API_KEY on the server) ---------- */
-camsReady.then(() => fetch("/api/sweden").then((r) => r.json())).then((j) => {
+const loadSweden = (tries = 3) => fetch("/api/sweden").then((r) => r.json()).then((j) => (j?.enabled && !j.rows?.length && tries > 1 ? new Promise((ok) => setTimeout(ok, 15000)).then(() => loadSweden(tries - 1)) : j));
+camsReady.then(() => loadSweden()).then((j) => {
   if (!j?.enabled || !j.rows?.length) return;
   state.camSources.se = { name: "Trafikverket (open data)", place: "Sweden", tpl: "{k}" };
   const fresh = j.rows.map(([id, n, la, lo, url]) => ({ id: `se:${id}`, s: "se", k: url, n, place: "Sweden", la, lo }));

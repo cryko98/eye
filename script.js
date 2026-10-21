@@ -108,7 +108,7 @@ setInterval(() => { if (!logQueue.length) log(rand(BANTER)); }, 11000);
 
 /* ---------- state ---------- */
 const state = { cams: [], camSources: {}, planes: [], sats: [], quakes: [], feed: "INIT", feedTime: 0, source: "", selected: null };
-const SRC_FLAG = { tallinn: "Tallinn", ee: "Estonia", fi: "Finland", no: "Norway", tfl: "London", it: "Italy", hu: "Hungary", hk: "Hong Kong", sg: "Singapore", nsw: "Sydney / NSW", nz: "New Zealand", austin: "Austin", or: "Oregon", ga: "Georgia", pa: "Pennsylvania", az: "Arizona", nv: "Nevada", la: "Louisiana", ak: "Alaska", on: "Ontario", ab: "Alberta", bc: "British Columbia", calgary: "Calgary", fl: "Florida", ct: "Connecticut", id: "Idaho", yt: "Yukon", fw: "Alps weather", se: "Sweden", osm: "OpenStreetMap", windy: "Windy" };
+const SRC_FLAG = { tallinn: "Tallinn", ee: "Estonia", fi: "Finland", no: "Norway", tfl: "London", it: "Italy", hu: "Hungary", hk: "Hong Kong", sg: "Singapore", nsw: "Sydney / NSW", nz: "New Zealand", austin: "Austin", or: "Oregon", ga: "Georgia", pa: "Pennsylvania", az: "Arizona", nv: "Nevada", la: "Louisiana", ak: "Alaska", on: "Ontario", ab: "Alberta", bc: "British Columbia", calgary: "Calgary", fl: "Florida", ct: "Connecticut", id: "Idaho", yt: "Yukon", fw: "Alps weather", se: "Sweden", osm: "OpenStreetMap", windy: "Windy" , at: "Austria", cz: "Czech Republic", de: "Germany", es: "Spain", fr: "France", ie: "Ireland", is: "Iceland", lt: "Lithuania"};
 
 /* ---------- data: cameras ---------- */
 const camsReady = fetch(CONFIG.camerasUrl).then((r) => r.json()).then((j) => {

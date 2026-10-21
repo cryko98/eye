@@ -71,6 +71,7 @@ Import the GitHub repo. Framework preset **Other**, no build command, output dir
 Optional environment variables:
 
 - `WINDY_API_KEY`: a free key from https://api.windy.com/keys turns on the **WEBCAMS HERE** button and the `api/windy.js` function, which pulls Windy.com webcams (tens of thousands worldwide, including Africa, Asia and South America) around the current view and around every search result. Attribution "Webcams by Windy.com" is shown in the Socials window.
+- `TRAFIKVERKET_API_KEY`: free key from https://api.trafikinfo.trafikverket.se adds about 2,000 Swedish road and road-weather cameras through `api/sweden.js`.
 - `OPENSKY_CLIENT_ID` and `OPENSKY_CLIENT_SECRET` (OAuth2 client credentials from a free OpenSky account) raise the aircraft-feed quota. Without them anonymous access is used and, if OpenSky throttles, the function falls back to adsb.lol samples around major hubs.
 
 ## Hidden Eyes treasure hunt

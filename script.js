@@ -108,7 +108,7 @@ setInterval(() => { if (!logQueue.length) log(rand(BANTER)); }, 11000);
 
 /* ---------- state ---------- */
 const state = { cams: [], camSources: {}, planes: [], sats: [], quakes: [], feed: "INIT", feedTime: 0, source: "", selected: null };
-const SRC_FLAG = { tallinn: "Tallinn", ee: "Estonia", fi: "Finland", no: "Norway", tfl: "London", it: "Italy", hu: "Hungary", hk: "Hong Kong", sg: "Singapore", nsw: "Sydney / NSW", nz: "New Zealand", austin: "Austin", or: "Oregon", ga: "Georgia", pa: "Pennsylvania", az: "Arizona", nv: "Nevada", la: "Louisiana", ak: "Alaska", on: "Ontario", ab: "Alberta", bc: "British Columbia", calgary: "Calgary", fl: "Florida", ct: "Connecticut", id: "Idaho", yt: "Yukon", fw: "Alps weather", osm: "OpenStreetMap", windy: "Windy" };
+const SRC_FLAG = { tallinn: "Tallinn", ee: "Estonia", fi: "Finland", no: "Norway", tfl: "London", it: "Italy", hu: "Hungary", hk: "Hong Kong", sg: "Singapore", nsw: "Sydney / NSW", nz: "New Zealand", austin: "Austin", or: "Oregon", ga: "Georgia", pa: "Pennsylvania", az: "Arizona", nv: "Nevada", la: "Louisiana", ak: "Alaska", on: "Ontario", ab: "Alberta", bc: "British Columbia", calgary: "Calgary", fl: "Florida", ct: "Connecticut", id: "Idaho", yt: "Yukon", fw: "Alps weather", se: "Sweden", osm: "OpenStreetMap", windy: "Windy" };
 
 /* ---------- data: cameras ---------- */
 const camsReady = fetch(CONFIG.camerasUrl).then((r) => r.json()).then((j) => {
@@ -121,6 +121,18 @@ const camsReady = fetch(CONFIG.camerasUrl).then((r) => r.json()).then((j) => {
   return state.cams;
 }).catch(() => { hud.cams.textContent = "ERR"; return []; });
 const dynCache = {};
+/* ---------- Swedish cameras (Trafikverket open data, loaded at runtime; needs TRAFIKVERKET_API_KEY on the server) ---------- */
+camsReady.then(() => fetch("/api/sweden").then((r) => r.json())).then((j) => {
+  if (!j?.enabled || !j.rows?.length) return;
+  state.camSources.se = { name: "Trafikverket (open data)", place: "Sweden", tpl: "{k}" };
+  const fresh = j.rows.map(([id, n, la, lo, url]) => ({ id: `se:${id}`, s: "se", k: url, n, place: "Sweden", la, lo }));
+  state.cams.push(...fresh);
+  hud.cams.textContent = pad(state.cams.length, 4); $("cam-count").textContent = fmtInt(state.cams.length);
+  const sel = $("wall-source"); if (!sel.querySelector('option[value="se"]')) { const o = document.createElement("option"); o.value = "se"; o.textContent = `SWEDEN · ${fresh.length}`; sel.appendChild(o); }
+  const nets = $("cam-networks"); if (nets && /^\d+$/.test(nets.textContent)) nets.textContent = String(+nets.textContent + 1);
+  globe.addCams?.(fresh);
+  log(`SWEDEN ONLINE · ${fmtInt(fresh.length)} TRAFIKVERKET CAMERAS`);
+}).catch(() => {});
 /* ---------- optional: worldwide webcams via Windy (needs WINDY_API_KEY on the server) ---------- */
 const windy = { enabled: false, loaded: new Map() };
 fetch(CONFIG.windyUrl).then((r) => r.json()).then((j) => {

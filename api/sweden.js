@@ -27,7 +27,7 @@ function send(res, status, body, maxAge) {
   res.statusCode = status;
   res.setHeader("Content-Type", "application/json; charset=utf-8");
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Cache-Control", `public, s-maxage=${maxAge}, stale-while-revalidate=86400, max-age=600`);
+  res.setHeader("Cache-Control", status >= 400 ? "no-store" : `public, s-maxage=${maxAge}, stale-while-revalidate=86400, max-age=600`);
   res.end(body);
 }
 async function fetchList(key) {

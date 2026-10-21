@@ -12,7 +12,7 @@ const CONFIG = {
   },
   flightsUrl: "/api/flights",                         // Vercel function (api/flights.js)
   flightsRefreshMs: 60_000,
-  camerasUrl: "/cameras.json",
+  camerasUrl: "/cameras.json?v=20261021b",          // bump the version whenever cameras.json changes
   huntUrl: "/api/hunt",                               // Hidden Eyes hunt (api/hunt.js)
   estoniaUrl: "/api/estonia",                         // Vercel function (api/estonia.js)
   windyUrl: "/api/windy",                             // optional worldwide webcams (set WINDY_API_KEY on Vercel)
@@ -122,7 +122,7 @@ const camsReady = fetch(CONFIG.camerasUrl).then((r) => r.json()).then((j) => {
 }).catch(() => { hud.cams.textContent = "ERR"; return []; });
 const dynCache = {};
 /* ---------- Swedish cameras (Trafikverket open data, loaded at runtime; needs TRAFIKVERKET_API_KEY on the server) ---------- */
-const loadSweden = (tries = 3) => fetch("/api/sweden").then((r) => r.json()).then((j) => (j?.enabled && !j.rows?.length && tries > 1 ? new Promise((ok) => setTimeout(ok, 15000)).then(() => loadSweden(tries - 1)) : j));
+const loadSweden = (tries = 3) => fetch(tries < 3 ? `/api/sweden?r=${Date.now()}` : "/api/sweden", tries < 3 ? { cache: "no-store" } : {}).then((r) => r.json()).then((j) => (j?.enabled && !j.rows?.length && tries > 1 ? new Promise((ok) => setTimeout(ok, 15000)).then(() => loadSweden(tries - 1)) : j));
 camsReady.then(() => loadSweden()).then((j) => {
   if (!j?.enabled || !j.rows?.length) return;
   state.camSources.se = { name: "Trafikverket (open data)", place: "Sweden", tpl: "{k}" };

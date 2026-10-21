@@ -12,7 +12,7 @@ const CONFIG = {
   },
   flightsUrl: "/api/flights",                         // Vercel function (api/flights.js)
   flightsRefreshMs: 60_000,
-  camerasUrl: "/cameras.json?v=20261021b",          // bump the version whenever cameras.json changes
+  camerasUrl: "/cameras.json?v=20261021c",          // bump the version whenever cameras.json changes
   huntUrl: "/api/hunt",                               // Hidden Eyes hunt (api/hunt.js)
   estoniaUrl: "/api/estonia",                         // Vercel function (api/estonia.js)
   windyUrl: "/api/windy",                             // optional worldwide webcams (set WINDY_API_KEY on Vercel)
@@ -108,7 +108,7 @@ setInterval(() => { if (!logQueue.length) log(rand(BANTER)); }, 11000);
 
 /* ---------- state ---------- */
 const state = { cams: [], camSources: {}, planes: [], sats: [], quakes: [], feed: "INIT", feedTime: 0, source: "", selected: null };
-const SRC_FLAG = { tallinn: "Tallinn", ee: "Estonia", fi: "Finland", no: "Norway", tfl: "London", it: "Italy", hu: "Hungary", hk: "Hong Kong", sg: "Singapore", nsw: "Sydney / NSW", nz: "New Zealand", austin: "Austin", or: "Oregon", ga: "Georgia", pa: "Pennsylvania", az: "Arizona", nv: "Nevada", la: "Louisiana", ak: "Alaska", on: "Ontario", ab: "Alberta", bc: "British Columbia", calgary: "Calgary", fl: "Florida", ct: "Connecticut", id: "Idaho", yt: "Yukon", fw: "Alps weather", se: "Sweden", osm: "OpenStreetMap", windy: "Windy" , at: "Austria", cz: "Czech Republic", de: "Germany", es: "Spain", fr: "France", ie: "Ireland", is: "Iceland"};
+const SRC_FLAG = { tallinn: "Tallinn", ee: "Estonia", fi: "Finland", no: "Norway", tfl: "London", it: "Italy", hu: "Hungary", hk: "Hong Kong", sg: "Singapore", nsw: "Sydney / NSW", nz: "New Zealand", austin: "Austin", or: "Oregon", ga: "Georgia", pa: "Pennsylvania", az: "Arizona", nv: "Nevada", la: "Louisiana", ak: "Alaska", on: "Ontario", ab: "Alberta", bc: "British Columbia", calgary: "Calgary", fl: "Florida", ct: "Connecticut", id: "Idaho", yt: "Yukon", fw: "Alps weather", se: "Sweden", osm: "OpenStreetMap", windy: "Windy" , at: "Austria", cz: "Czech Republic", de: "Germany", es: "Spain", fr: "France", ie: "Ireland", is: "Iceland", be: "Belgium", lu: "Luxembourg"};
 
 /* ---------- data: cameras ---------- */
 const camsReady = fetch(CONFIG.camerasUrl).then((r) => r.json()).then((j) => {

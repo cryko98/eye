@@ -100,7 +100,7 @@ document.querySelectorAll("[data-panel-open]").forEach((b) => b.addEventListener
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") { closePanels(); globe.clearTarget?.(); globe.stopFly?.(); } });
 
 /* ---------- HUD ---------- */
-const hud = Object.fromEntries(["clock", "mode", "alt", "lat", "lon", "planes", "cams", "sats", "quakes", "feed", "sensor", "log", "eyes", "threats"].map((k) => [k, $(`hud-${k}`)]));
+const hud = Object.fromEntries(["clock", "mode", "alt", "lat", "lon", "planes", "cams", "sats", "feed", "sensor", "log", "eyes", "threats"].map((k) => [k, $(`hud-${k}`)]));
 const logQueue = [];
 function log(msg) { logQueue.push(msg); if (logQueue.length > 6) logQueue.shift(); }
 setInterval(() => { if (logQueue.length) hud.log.textContent = `> ${logQueue.shift()}`; }, 2200);
@@ -109,7 +109,7 @@ const BANTER = ["ALERT: JEET DETECTED · SELLING AT A LOSS", "LOCK: WHALE WALLET
 setInterval(() => { if (!logQueue.length) log(rand(BANTER)); }, 11000);
 
 /* ---------- state ---------- */
-const state = { cams: [], camSources: {}, planes: [], sats: [], quakes: [], feed: "INIT", feedTime: 0, source: "", selected: null };
+const state = { cams: [], camSources: {}, planes: [], sats: [], feed: "INIT", feedTime: 0, source: "", selected: null };
 const SRC_FLAG = { tallinn: "Tallinn", ee: "Estonia", fi: "Finland", no: "Norway", tfl: "London", it: "Italy", hu: "Hungary", hk: "Hong Kong", sg: "Singapore", nsw: "Sydney / NSW", nz: "New Zealand", austin: "Austin", or: "Oregon", ga: "Georgia", pa: "Pennsylvania", az: "Arizona", nv: "Nevada", la: "Louisiana", ak: "Alaska", on: "Ontario", ab: "Alberta", bc: "British Columbia", calgary: "Calgary", fl: "Florida", ct: "Connecticut", id: "Idaho", yt: "Yukon", fw: "Alps weather", se: "Sweden", osm: "OpenStreetMap", windy: "Windy" , at: "Austria", cz: "Czech Republic", de: "Germany", es: "Spain", fr: "France", ie: "Ireland", is: "Iceland", be: "Belgium", lu: "Luxembourg"};
 
 /* ---------- data: cameras ---------- */
@@ -266,14 +266,6 @@ function renderThreatFeed() {
   $("th-intercepted").textContent = fmtInt(threats.intercepted);
 }
 
-/* ---------- data: earthquakes (USGS, past 24 h, M2.5+) ---------- */
-const quakesReady = fetch("https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_day.geojson").then((r) => r.json()).then((j) => {
-  state.quakes = j.features.map((f) => ({ id: f.id, mag: f.properties.mag, place: f.properties.place, time: f.properties.time, lon: f.geometry.coordinates[0], lat: f.geometry.coordinates[1], depth: f.geometry.coordinates[2] }));
-  hud.quakes.textContent = pad(state.quakes.length, 3);
-  const big = state.quakes.reduce((a, b) => (b.mag > (a?.mag || 0) ? b : a), null);
-  if (big) log(`SEISMIC · ${state.quakes.length} EVENTS 24H · MAX M${big.mag.toFixed(1)} ${big.place?.toUpperCase() || ""}`);
-  return state.quakes;
-}).catch(() => { hud.quakes.textContent = "ERR"; return []; });
 
 /* =========================================================
    HIDDEN EYES HUNT — client
@@ -479,7 +471,6 @@ const globe = {};
   const planes = scene.primitives.add(new Cesium.BillboardCollection({ scene }));
   const satPoints = scene.primitives.add(new Cesium.BillboardCollection({ scene }));
   const satLabels = scene.primitives.add(new Cesium.LabelCollection({ scene }));
-  const quakePoints = scene.primitives.add(new Cesium.PointPrimitiveCollection());
   const threatPoints = scene.primitives.add(new Cesium.PointPrimitiveCollection());
   const strikeLines = scene.primitives.add(new Cesium.PolylineCollection());
   const eyeSat = scene.primitives.add(new Cesium.BillboardCollection({ scene }));
@@ -504,14 +495,13 @@ const globe = {};
   const SAT_IMG = satSvg("#22e6e6", 18), SAT_IMG_BIG = satSvg("#ffffff", 26);
   const PLANE_IMG = "data:image/svg+xml;utf8," + encodeURIComponent(
     `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><path d="M12 1.5 L13.6 8.5 L22.5 13 L22.5 15.2 L13.8 12.4 L13.3 18 L16.2 20.2 L16.2 22 L12 20.8 L7.8 22 L7.8 20.2 L10.7 18 L10.2 12.4 L1.5 15.2 L1.5 13 L10.4 8.5 Z" fill="#22e6e6" stroke="#04171a" stroke-width="0.8"/></svg>`);
-  const layerState = { threats: true, planes: true, cams: true, labels: true, sats: true, quakes: true, radar: false, lights: true, cables: false, detect: false, traffic: false };
+  const layerState = { threats: true, planes: true, cams: true, labels: true, sats: true, radar: false, lights: true, cables: false, detect: false, traffic: false };
   async function setLayer(name, on, quiet) {
     layerState[name] = on;
     document.querySelector(`[data-layer="${name}"]`)?.classList.toggle("on", on);
     if (name === "planes") planes.show = on;
     if (name === "cams") camPoints.show = on;
     if (name === "sats") { satPoints.show = on; satLabels.show = on; }
-    if (name === "quakes") quakePoints.show = on;
     if (name === "threats") { threatPoints.show = on; strikeLines.show = on; eyeSat.show = on; eyeLabel.show = on; if (!on) { strikeLines.removeAll(); strikes.length = 0; } }
     if (name === "lights" && lightsLayer) lightsLayer.show = on;
     if (name === "labels" && labelsLayer) labelsLayer.show = on;
@@ -605,12 +595,6 @@ const globe = {};
     }
   });
 
-  quakesReady.then((qs) => {
-    for (const q of qs) quakePoints.add({
-      position: C3.fromDegrees(q.lon, q.lat, 1000), color: RED.withAlpha(0.85), pixelSize: 4 + Math.max(0, q.mag - 2) * 3,
-      outlineColor: RED.withAlpha(0.35), outlineWidth: 3, disableDepthTestDistance: 0, id: { type: "quake", q },
-    });
-  });
 
   function northAxis(pos) {
     const up = C3.normalize(pos, new C3());
@@ -673,7 +657,7 @@ const globe = {};
     if (sel.type === "plane") return planePos(sel.p);
     if (sel.type === "sat") return satGeo(sel.s) || sel.s.geo;
     if (sel.type === "cam") return { lon: sel.cam.lo, lat: sel.cam.la, alt: 30 };
-    return { lon: sel.q.lon, lat: sel.q.lat, alt: 1000 };
+    return null;
   }
   function liveHeading(sel) {
     if (sel.type === "plane") return CM.toRadians(sel.p.hdg || 0);
@@ -687,7 +671,6 @@ const globe = {};
     if (sel.type === "cam") camera.flyTo({ destination: C3.fromDegrees(pos.lon, pos.lat - 0.012, 1400), orientation: { heading: 0, pitch: CM.toRadians(-48), roll: 0 }, duration: 3.2 });
     else if (sel.type === "plane") camera.flyToBoundingSphere(new Cesium.BoundingSphere(C3.fromDegrees(pos.lon, pos.lat, pos.alt), 12000), { offset: new Cesium.HeadingPitchRange(liveHeading(sel), CM.toRadians(-28), 38000), duration: 3.2 });
     else if (sel.type === "sat") camera.flyTo({ destination: C3.fromDegrees(pos.lon, pos.lat, pos.alt + 2.2e6), orientation: { heading: 0, pitch: -CM.PI_OVER_TWO, roll: 0 }, duration: 3 });
-    else camera.flyTo({ destination: C3.fromDegrees(pos.lon, pos.lat - 1.2, 260000), orientation: { heading: 0, pitch: CM.toRadians(-55), roll: 0 }, duration: 3 });
   }
   function nearby(sel) {
     const pos = livePos(sel); if (!pos || !state.planes.length) { T.nearby.hidden = true; return; }
@@ -724,7 +707,7 @@ const globe = {};
     state.selected = sel;
     panels.forEach((p) => (p.hidden = p !== T.panel)); dock.querySelectorAll("button").forEach((b) => b.classList.remove("active"));
     clearInterval(imgTimer); T.fig.hidden = true; T.open.hidden = true; T.follow.hidden = true; T.cockpit.hidden = true;
-    $("target-street").hidden = !(sel.type === "cam" || sel.type === "quake");
+    $("target-street").hidden = sel.type !== "cam";
     hud.mode.textContent = follow ? "FOLLOW" : cockpit ? "COCKPIT" : "TRACK";
     if (sel.type === "cam") {
       const c = sel.cam, src = state.camSources[c.s];
@@ -764,13 +747,6 @@ const globe = {};
       setMeta([["ALTITUDE", `${fmtInt(geo.alt / 1000)} km`], ["SPEED", `${geo.speed.toFixed(2)} km/s`], ["PERIOD", `${s.period.toFixed(1)} min`], ["INCLINATION", `${CM.toDegrees(s.rec.inclo).toFixed(1)}°`], ["POSITION", `${geo.lat.toFixed(2)}, ${geo.lon.toFixed(2)}`]]);
       marker.position = C3.fromDegrees(geo.lon, geo.lat, geo.alt);
       log(`ORBITAL TRACK · ${s.name} · ${fmtInt(geo.alt / 1000)} KM`);
-    } else {
-      const q = sel.q;
-      T.kind.textContent = "EARTHQUAKE · USGS"; T.title.textContent = `M${q.mag.toFixed(1)}`; T.sub.textContent = q.place || "";
-      const ago = Math.round((Date.now() - q.time) / 60000);
-      setMeta([["TIME", `${new Date(q.time).toISOString().slice(0, 16).replace("T", " ")}Z`], ["AGO", ago < 60 ? `${ago} min` : `${(ago / 60).toFixed(1)} h`], ["DEPTH", `${q.depth.toFixed(1)} km`], ["POSITION", `${q.lat.toFixed(3)}, ${q.lon.toFixed(3)}`]]);
-      marker.position = C3.fromDegrees(q.lon, q.lat, 1000);
-      log(`SEISMIC EVENT · M${q.mag.toFixed(1)} · ${(q.place || "").toUpperCase()}`);
     }
     marker.show = true;
     nearby(sel);
@@ -780,7 +756,6 @@ const globe = {};
   globe.selectCam = (c, fly = true) => showTarget({ type: "cam", cam: c }, fly);
   globe.selectPlane = (p, fly = true) => showTarget({ type: "plane", p }, fly);
   globe.selectSat = (s, fly = true) => showTarget({ type: "sat", s }, fly);
-  globe.selectQuake = (q, fly = true) => showTarget({ type: "quake", q }, fly);
   globe.clearTarget = (keepView) => {
     const had = !!state.selected;
     marker.show = false; state.selected = null; clearInterval(imgTimer); stopFollow(true); T.nearby.hidden = true;
@@ -816,8 +791,7 @@ const globe = {};
   $("target-fly").addEventListener("click", () => state.selected && flyToSel(state.selected));
   $("target-next").addEventListener("click", () => {
     const s = state.selected; if (!s) return;
-    if (s.type === "cam") globe.selectCam(rand(state.cams)); else if (s.type === "sat") globe.selectSat(rand(state.sats));
-    else if (s.type === "quake") globe.selectQuake(rand(state.quakes)); else trackRandom();
+    if (s.type === "cam") globe.selectCam(rand(state.cams)); else if (s.type === "sat") globe.selectSat(rand(state.sats)); else trackRandom();
   });
   T.follow.addEventListener("click", () => {
     if (follow) return stopFollow();
@@ -863,7 +837,7 @@ const globe = {};
     if (id.type === "eyesat") { openPanel("threats"); return; }
     if (id.type === "egg") { huntProbe("ground", { token: id.token, lat: id.lat, lon: id.lon }); if (!hunt.wallet) { openPanel("hunt"); log("AN EYE · CONNECT A WALLET TO LOG IT"); } return; }
     if (id.type === "cam") globe.selectCam(id.cam); else if (id.type === "plane") globe.selectPlane(id.p);
-    else if (id.type === "sat") globe.selectSat(id.s); else if (id.type === "quake") globe.selectQuake(id.q);
+    else if (id.type === "sat") globe.selectSat(id.s);
     else if (id.properties?.name) log(`CABLE · ${String(id.name || id.properties.name).toUpperCase()}`);
   }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
   // Hover cursor: picking forces an extra render, so throttle it and skip it entirely while a button is held.
@@ -1056,7 +1030,6 @@ const globe = {};
     };
     if (layerState.planes) for (const p of state.planes) { if (drawn > MAX) break; if (Math.abs(p.lat - centre.lat) > span || Math.abs(p.lon - centre.lon) > span * 1.6) continue; const q = planePos(p); box(C3.fromDegrees(q.lon, q.lat, q.alt), p.cs || p.icao.toUpperCase(), "#22e6e6", 10); }
     if (layerState.cams && height < 4e5) for (const c of state.cams) { if (drawn > MAX) break; if (Math.abs(c.la - centre.lat) > span || Math.abs(c.lo - centre.lon) > span * 1.6) continue; box(C3.fromDegrees(c.lo, c.la, 30), `CAM ${String(c.k).slice(0, 10).toUpperCase()}`, "#ffb800", 7); }
-    if (layerState.quakes) for (const q of state.quakes) { if (Math.abs(q.lat - centre.lat) > span * 2 || Math.abs(q.lon - centre.lon) > span * 3) continue; box(C3.fromDegrees(q.lon, q.lat, 1000), `M${q.mag.toFixed(1)}`, "#ff6b7a", 9); }
     if (layerState.sats) for (const sat of state.sats) { const g = sat.geo; if (!g) continue; box(C3.fromDegrees(g.lon, g.lat, g.alt), sat.name.slice(0, 14), "#ffffff", 8); }
     globe.detectCount = drawn;
     dctx.fillStyle = "#22e6e6"; dctx.fillText(`DETECT · ${drawn} CONTACTS IN FRAME`, w / 2 - 90, 92);
@@ -1171,7 +1144,7 @@ const globe = {};
     const sensor = document.querySelector("[data-sensor].on")?.dataset.sensor; if (sensor && sensor !== "eo") parts.push(`s=${sensor}`);
     const sel = state.selected;
     if (sel?.type === "cam") parts.push(`t=cam:${sel.cam.id}`); if (sel?.type === "plane") parts.push(`t=plane:${sel.p.icao}`);
-    if (sel?.type === "sat") parts.push(`t=sat:${sel.s.norad}`); if (sel?.type === "quake") parts.push(`t=quake:${sel.q.id}`);
+    if (sel?.type === "sat") parts.push(`t=sat:${sel.s.norad}`);
     return "?" + parts.join("&");
   }
   $("btn-share").addEventListener("click", async () => {
@@ -1190,7 +1163,6 @@ const globe = {};
     if (kind === "cam") { const c = state.cams.find((x) => x.id === key); if (c) { hashTargetDone = true; globe.selectCam(c, !hash.c); } }
     if (kind === "plane") { const p = state.planes.find((x) => x.icao === key); if (p) { hashTargetDone = true; globe.selectPlane(p, !hash.c); } else if (state.feed !== "INIT") hashTargetDone = true; }
     if (kind === "sat") { const s = state.sats.find((x) => x.norad === key); if (s) { hashTargetDone = true; globe.selectSat(s, !hash.c); } }
-    if (kind === "quake") quakesReady.then((qs) => { const q = qs.find((x) => x.id === key); if (q && !hashTargetDone) { hashTargetDone = true; globe.selectQuake(q, !hash.c); } });
   }
 })();
 
@@ -1252,13 +1224,6 @@ function buildBoard() {
     const named = state.sats.filter((s) => /ISS|TIANHE|HST/.test(s.name)), rows = [...named, ...sample(state.sats.filter((s) => !named.includes(s)), 10)];
     body.innerHTML = rows.map((s, i) => { const g = s.geo || {}; return `<tr><td class="dim">${esc(s.name)}</td><td>${g.alt ? fmtInt(g.alt / 1000) + " km" : "—"}</td><td>${g.speed ? g.speed.toFixed(1) + " km/s" : "—"}</td><td>${s.period.toFixed(0)} min</td><td><button type="button" data-i="${i}">TRACK</button></td></tr>`; }).join("");
     body.querySelectorAll("button").forEach((b) => b.addEventListener("click", () => globe.selectSat?.(rows[+b.dataset.i])));
-  } else {
-    if (!state.quakes.length) { status.textContent = "Loading USGS feed…"; body.innerHTML = ""; head.innerHTML = ""; return; }
-    status.innerHTML = `<b>${state.quakes.length}</b> earthquakes M2.5+ in the last 24 hours · USGS`;
-    head.innerHTML = `<tr><th>MAG</th><th>PLACE</th><th>AGO</th><th></th></tr>`;
-    const rows = [...state.quakes].sort((a, b) => b.mag - a.mag).slice(0, 14);
-    body.innerHTML = rows.map((q, i) => { const ago = Math.round((Date.now() - q.time) / 60000); return `<tr><td>M${q.mag.toFixed(1)}</td><td class="dim">${esc(q.place)}</td><td>${ago < 60 ? ago + " min" : (ago / 60).toFixed(1) + " h"}</td><td><button type="button" data-i="${i}">VIEW</button></td></tr>`; }).join("");
-    body.querySelectorAll("button").forEach((b) => b.addEventListener("click", () => globe.selectQuake?.(rows[+b.dataset.i])));
   }
 }
 $("board-refresh").addEventListener("click", buildBoard);

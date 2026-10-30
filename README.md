@@ -1,6 +1,6 @@
 # God's Eye View — $EYE
 
-Single-screen site for the **$EYE** memecoin on Solana: a live 3D globe (CesiumJS) with real satellite imagery, a day-night terminator with city lights, live ADS-B aircraft, satellites propagated from CelesTrak elements, USGS earthquakes, RainViewer weather radar, the submarine cable map and 23,085 real public cameras in 26 networks on five continents, including 400 alpine weather cams. Everything else (intel, tokenomics, how to buy, roadmap, cameras, contacts, socials) opens in floating windows over the globe. No scrolling.
+Single-screen site for the **$EYE** memecoin on Solana: a live 3D globe (CesiumJS) with real satellite imagery, a day-night terminator with city lights, live ADS-B aircraft, satellites propagated from CelesTrak elements, RainViewer weather radar, the submarine cable map, live cyber-attack sources and 31,000+ real public cameras in nearly 40 networks on five continents. Everything else (intel, tokenomics, how to buy, roadmap, cameras, contacts, socials) opens in floating windows over the globe. No scrolling.
 
 Inspired by the look and feature set of the open-source [God's Eye View](https://github.com/bilawalsidhu/gods-eye-view) project; rebuilt from scratch as a static site plus two small serverless functions.
 
@@ -30,9 +30,9 @@ The CA shows in the top bar, the mission card, the Tokenomics and How-to-buy win
 | Layer | Source | Notes |
 | --- | --- | --- |
 | Aircraft | OpenSky Network via `api/flights.js` (adsb.lol fallback) | up to 6,000 contacts, refreshed every minute, dead-reckoned in between; click, follow or ride in the cockpit |
-| Cameras | 26 public networks, `cameras.json` | North America: Florida, Georgia, Pennsylvania, Connecticut, Arizona, Nevada, Idaho, Louisiana, Alaska, Oregon, Austin, Ontario, Alberta, British Columbia, Yukon, Calgary. Europe: London, Norway, Finland, Estonia, Tallinn, foto-webcam.eu alpine weather cams (AT/DE/IT/CH). Asia-Pacific: Hong Kong, Singapore, Sydney/NSW, New Zealand. Estonian and Singapore frames resolve through `api/estonia.js` and `api/singapore.js` |
+| Cameras | ~40 public networks, `cameras.json` + `api/sweden.js` | North America: Florida, Georgia, Pennsylvania, Connecticut, Arizona, Nevada, Idaho, Louisiana, Alaska, Oregon, Austin, Ontario, Alberta, British Columbia, Yukon, Calgary. Europe: Spain (DGT, Basque Country, Catalonia), Sweden (Trafikverket, needs `TRAFIKVERKET_API_KEY`), Czech Republic, Italy, Austria, Iceland, Hungary, Germany (Bavaria), Ireland, Belgium (Wallonia), Luxembourg, France, Norway, Finland, Estonia, Tallinn, London, alpine weather cams. Asia-Pacific: Hong Kong, Singapore, Sydney/NSW, New Zealand. |
 | Satellites | CelesTrak `stations` + `visual` TLEs, satellite.js | satellite icons; ISS, Tiangong, Hubble labelled; follow and cockpit modes |
-| Earthquakes | USGS M2.5+ past 24 h | sized by magnitude |
+| Cyber threats | blocklist.de (48 h) + RIR delegation statistics via `api/threats.js` | attack sources by type and country, strikes intercepted by EYE-01 |
 | Radar | RainViewer | latest frame, refreshed every 10 min while on |
 | Night lights | NASA GIBS VIIRS Black Marble | shown only on the dark side |
 | Cables | TeleGeography submarine cable map | loaded on demand |
@@ -94,4 +94,4 @@ Ground eyes only become visible (a small amber eye marker) when the view is with
 
 ## Data credits
 
-OpenSky Network, adsb.lol, CelesTrak, USGS, RainViewer, TeleGeography, FDOT FL511, CTDOT CTroads, Idaho 511, Yukon 511, foto-webcam.eu, Georgia 511, PennDOT 511PA, ADOT AZ511, NDOT Nevada Roads, Louisiana 511, Alaska 511, Ontario 511 (OGL Ontario), Alberta 511, DriveBC (OGL BC), NZTA, LTA via data.gov.sg, TfL Open Data, Hong Kong Transport Department (data.gov.hk), Live Traffic NSW (CC BY 4.0), City of Austin Open Data, Oregon DOT TripCheck, Open Calgary, Statens vegvesen (NLOD 2.0), Fintraffic Digitraffic (CC BY 4.0), Transpordiamet / Tarktee, City of Tallinn, Esri and partners, NASA GIBS, Photon (komoot), CesiumJS.
+OpenSky Network, adsb.lol, adsb.fi, CelesTrak, RainViewer, blocklist.de, RIR delegation statistics, TeleGeography, FDOT FL511, CTDOT CTroads, Idaho 511, Yukon 511, foto-webcam.eu, Georgia 511, PennDOT 511PA, ADOT AZ511, NDOT Nevada Roads, Louisiana 511, Alaska 511, Ontario 511 (OGL Ontario), Alberta 511, DriveBC (OGL BC), NZTA, LTA via data.gov.sg, TfL Open Data, Hong Kong Transport Department (data.gov.hk), Live Traffic NSW (CC BY 4.0), City of Austin Open Data, Oregon DOT TripCheck, Open Calgary, Statens vegvesen (NLOD 2.0), Fintraffic Digitraffic (CC BY 4.0), Transpordiamet / Tarktee, City of Tallinn, Esri and partners, NASA GIBS, Photon (komoot), CesiumJS.

@@ -45,6 +45,7 @@
       <button type="button" data-panel="roadmap">Roadmap</button>
       <button type="button" data-panel="cameras">Cameras</button>
       <button type="button" data-panel="flights">Contacts</button>
+      <button type="button" data-panel="threats" class="dock-threats">Threats</button>
       <button type="button" data-panel="hunt" class="dock-hunt">Hunt</button>
       <button type="button" data-panel="community">Socials</button>
     </nav>
@@ -69,6 +70,7 @@
       <div>CAMERAS&nbsp;&nbsp;&nbsp; <b id="hud-cams">—</b></div>
       <div>SATELLITES <b id="hud-sats">—</b></div>
       <div>QUAKES 24H <b id="hud-quakes">—</b></div>
+      <div>THREATS 48H <b id="hud-threats">—</b></div>
       <div>FEED&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <b id="hud-feed">INIT</b></div>
       <div>SENSOR&nbsp;&nbsp;&nbsp;&nbsp; <b id="hud-sensor">EO</b></div>
       <div>EYES FOUND <b id="hud-eyes">—</b></div>
@@ -124,6 +126,7 @@
       <button type="button" data-layer="lights" class="on">NIGHT LIGHTS</button>
       <button type="button" data-layer="cables">CABLES</button>
       <button type="button" data-layer="detect">DETECT</button>
+      <button type="button" data-layer="threats" class="on">THREATS</button>
       <button type="button" data-layer="traffic" data-tomtom hidden>TRAFFIC</button>
     </div>
     <div class="ctl-group" data-ctl="route">
@@ -262,6 +265,28 @@
 
   <div id="hint-toast" class="toast" hidden role="status"><span class="toast-tag">INTEL HINT</span><span id="hint-text"></span><button type="button" id="hint-close">DISMISS</button></div>
 
+  <!-- ====== LIVE THREATS ====== -->
+  <section class="panel" id="panel-threats" hidden>
+    <header class="panel-head"><span class="panel-tag">// LIVE CYBER THREATS</span><button type="button" class="panel-close" data-close>CLOSE</button></header>
+    <div class="panel-body">
+      <h2>Attacks on the internet, live</h2>
+      <p class="panel-sub">Real attacking IP addresses reported in the last 48 hours, located by internet registry data and shown by attack type. Victims are never published, so every strike on the globe is intercepted by <b>EYE-01</b>.</p>
+      <ul class="stats tstats">
+        <li><span class="stat-label">ATTACK SOURCES</span><span class="stat-value" id="th-total">—</span><span class="stat-sub">unique IPs, 48 h</span></li>
+        <li><span class="stat-label">COUNTRIES</span><span class="stat-value" id="th-countries">—</span><span class="stat-sub">with active attackers</span></li>
+        <li><span class="stat-label">INTERCEPTED</span><span class="stat-value" id="th-intercepted">0</span><span class="stat-sub">by EYE-01 this session</span></li>
+        <li><span class="stat-label">TOP SOURCE</span><span class="stat-value" id="th-top">—</span><span class="stat-sub" id="th-top-sub"></span></li>
+      </ul>
+      <p class="nearby-head">ATTACK TYPES</p>
+      <ul class="tlegend" id="th-types"></ul>
+      <p class="nearby-head">TOP SOURCE COUNTRIES</p>
+      <ul class="tbars" id="th-countries-list"></ul>
+      <p class="nearby-head">LIVE FEED</p>
+      <ul class="tfeed" id="th-feed"></ul>
+      <p class="fine">Sources: <a href="https://www.blocklist.de" target="_blank" rel="noopener">blocklist.de</a> attack reports (IPs masked), RIR delegation statistics (ARIN, RIPE NCC, APNIC, LACNIC, AFRINIC). Locations are country-level. Strike timing on the globe is a replay of the reported sources, not real-time packet capture.</p>
+    </div>
+  </section>
+
   <!-- ====== INTEL ====== -->
   <section class="panel" id="panel-intel" hidden>
     <header class="panel-head"><span class="panel-tag">// 01 INTEL</span><button type="button" class="panel-close" data-close>CLOSE</button></header>
@@ -278,8 +303,9 @@
         <li><span class="idx">07</span><h3>Routes and flythroughs</h3><p>Switch on DRAW, click waypoints on the globe and the route snaps to real roads or footpaths (OSRM on OpenStreetMap). FLYTHROUGH then flies the camera along it at street height. DETECT paints screen-space boxes and IDs on every contact in frame.</p></li>
         <li><span class="idx">08</span><h3>Street level</h3><p>Hit STREET VIEW and click the spot you want to stand on, double-click anywhere, or open it from a camera's window: Google Street View opens right there and you can walk the streets from orbit.</p></li>
         <li><span class="idx">09</span><h3>Search and share</h3><p>Type coordinates or a place name to fly there. Hit SHARE and the camera, layers and tracked target serialize into a link.</p></li>
-        <li><span class="idx">10</span><h3>Hidden Eyes hunt</h3><p>Every hour a fresh set of eyes is hidden on the globe, on cameras, satellites and aircraft. Connect a wallet, find them, climb the live leaderboard; each round the first operators to hit the target are paid in SOL automatically, and the stake rises as the hunt gets harder.</p></li>
-        <li><span class="idx">11</span><h3>No bag left behind</h3><p>Every whale, every rug, every jeet. Tracked from 560 km up. $EYE is the ticker of the watchers.</p></li>
+        <li><span class="idx">10</span><h3>Live cyber threats</h3><p>Tens of thousands of real attacking IPs from the last 48 hours, by type and country, streaming into EYE-01 like a threat map.</p></li>
+        <li><span class="idx">11</span><h3>Hidden Eyes hunt</h3><p>Every hour a fresh set of eyes is hidden on the globe, on cameras, satellites and aircraft. Connect a wallet, find them, climb the live leaderboard; each round the first operators to hit the target are paid in SOL automatically, and the stake rises as the hunt gets harder.</p></li>
+        <li><span class="idx">12</span><h3>No bag left behind</h3><p>Every whale, every rug, every jeet. Tracked from 560 km up. $EYE is the ticker of the watchers.</p></li>
       </ul>
     </div>
   </section>
@@ -375,7 +401,7 @@
         <a class="btn btn-ghost" data-link="buy" href="#" target="_blank" rel="noopener">BUY $EYE</a>
       </div>
       <p class="fine">$EYE is a memecoin created for entertainment. It has no intrinsic value, no utility and no expectation of financial return. Nothing here is financial advice. Never invest more than you can afford to lose. Not affiliated with any government, satellite operator or the open-source God's Eye View project.</p>
-      <p class="fine">Data: aircraft from the <a href="https://opensky-network.org" target="_blank" rel="noopener">OpenSky Network</a> (adsb.lol fallback), aircraft identities and routes from <a href="https://www.adsbdb.com" target="_blank" rel="noopener">adsbdb</a>, aircraft photos © their photographers via <a href="https://www.planespotters.net" target="_blank" rel="noopener">Planespotters.net</a>; satellites from <a href="https://celestrak.org" target="_blank" rel="noopener">CelesTrak</a>; earthquakes from USGS; radar from RainViewer; cables from TeleGeography; cameras from TfL Open Data, HK Transport Department (data.gov.hk), LTA via data.gov.sg, Live Traffic NSW (CC BY 4.0), NZTA, foto-webcam.eu, City of Austin, Oregon DOT, FDOT FL511, CTDOT, Idaho 511, Yukon 511, Georgia 511, PennDOT 511PA, ADOT, NDOT, Louisiana 511, Alaska 511, Ontario 511 (OGL Ontario), Alberta 511, DriveBC (OGL BC), Open Calgary, Statens vegvesen (NLOD 2.0), Trafikverket, DGT (Spain), Autostrade per l'Italia, French road operators, Autobahn GmbH, ASFINAG via BayernInfo, ŘSD (Czech Republic), Magyar Közút / Útinform, TII (Ireland), Vegagerðin (Iceland), SPW Trafiroutes (Wallonia), CITA (Luxembourg), BayernInfo, Fintraffic Digitraffic (CC BY 4.0), Transpordiamet and the City of Tallinn; optional worldwide webcams by Windy.com; imagery by Esri and partners, NASA GIBS; routing by OSRM on the FOSSGIS servers (OpenStreetMap, ODbL); weather by <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> (CC BY 4.0); place names by Photon (komoot); headlines via the GDELT Project with Google News RSS fallback; traffic flow data © TomTom when a key is configured; globe by CesiumJS.</p>
+      <p class="fine">Data: aircraft from the <a href="https://opensky-network.org" target="_blank" rel="noopener">OpenSky Network</a> (adsb.lol fallback), aircraft identities and routes from <a href="https://www.adsbdb.com" target="_blank" rel="noopener">adsbdb</a>, aircraft photos © their photographers via <a href="https://www.planespotters.net" target="_blank" rel="noopener">Planespotters.net</a>; satellites from <a href="https://celestrak.org" target="_blank" rel="noopener">CelesTrak</a>; earthquakes from USGS; radar from RainViewer; cables from TeleGeography; cameras from TfL Open Data, HK Transport Department (data.gov.hk), LTA via data.gov.sg, Live Traffic NSW (CC BY 4.0), NZTA, foto-webcam.eu, City of Austin, Oregon DOT, FDOT FL511, CTDOT, Idaho 511, Yukon 511, Georgia 511, PennDOT 511PA, ADOT, NDOT, Louisiana 511, Alaska 511, Ontario 511 (OGL Ontario), Alberta 511, DriveBC (OGL BC), Open Calgary, Statens vegvesen (NLOD 2.0), Trafikverket, DGT (Spain), Autostrade per l'Italia, French road operators, Autobahn GmbH, ASFINAG via BayernInfo, ŘSD (Czech Republic), Magyar Közút / Útinform, TII (Ireland), Vegagerðin (Iceland), SPW Trafiroutes (Wallonia), CITA (Luxembourg), BayernInfo, Fintraffic Digitraffic (CC BY 4.0), Transpordiamet and the City of Tallinn; optional worldwide webcams by Windy.com; cyber-attack sources from blocklist.de with RIR delegation statistics; imagery by Esri and partners, NASA GIBS; routing by OSRM on the FOSSGIS servers (OpenStreetMap, ODbL); weather by <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> (CC BY 4.0); place names by Photon (komoot); headlines via the GDELT Project with Google News RSS fallback; traffic flow data © TomTom when a key is configured; globe by CesiumJS.</p>
     </div>
   </section>
 

@@ -12,6 +12,7 @@ const CONFIG = {
   },
   flightsUrl: "/api/flights",                         // Vercel function (api/flights.js)
   flightsRefreshMs: 60_000,
+  threatsUrl: "/api/threats",                         // live cyber-attack sources (api/threats.js)
   camerasUrl: "/cameras.json?v=20261021c",          // bump the version whenever cameras.json changes
   huntUrl: "/api/hunt",                               // Hidden Eyes hunt (api/hunt.js)
   estoniaUrl: "/api/estonia",                         // Vercel function (api/estonia.js)
@@ -82,6 +83,7 @@ function openPanel(name) {
   dock.classList.remove("open");
   if (name === "cameras") buildWall();
   if (name === "flights") buildBoard();
+  if (name === "threats") renderThreatPanel();
   if (window.innerWidth < 820) setMission(true);
 }
 function closePanels() { panels.forEach((p) => (p.hidden = true)); dock.querySelectorAll("button").forEach((b) => b.classList.remove("active")); }
@@ -98,7 +100,7 @@ document.querySelectorAll("[data-panel-open]").forEach((b) => b.addEventListener
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") { closePanels(); globe.clearTarget?.(); globe.stopFly?.(); } });
 
 /* ---------- HUD ---------- */
-const hud = Object.fromEntries(["clock", "mode", "alt", "lat", "lon", "planes", "cams", "sats", "quakes", "feed", "sensor", "log", "eyes"].map((k) => [k, $(`hud-${k}`)]));
+const hud = Object.fromEntries(["clock", "mode", "alt", "lat", "lon", "planes", "cams", "sats", "quakes", "feed", "sensor", "log", "eyes", "threats"].map((k) => [k, $(`hud-${k}`)]));
 const logQueue = [];
 function log(msg) { logQueue.push(msg); if (logQueue.length > 6) logQueue.shift(); }
 setInterval(() => { if (logQueue.length) hud.log.textContent = `> ${logQueue.shift()}`; }, 2200);
@@ -237,6 +239,31 @@ function satGeo(s, date = new Date()) {
   const gmst = satellite.gstime(date), g = satellite.eciToGeodetic(pv.position, gmst);
   const v = pv.velocity ? Math.hypot(pv.velocity.x, pv.velocity.y, pv.velocity.z) : 0;
   return { lon: satellite.degreesLong(g.longitude), lat: satellite.degreesLat(g.latitude), alt: g.height * 1000, speed: v };
+}
+
+/* ---------- data: live cyber threats (blocklist.de sources, 48 h) ---------- */
+const THREAT_COLORS = { strongips: "#ff2d55", ssh: "#ff3b5c", bruteforcelogin: "#ff8a3d", apache: "#ff7ad9", sip: "#7cffb2", ftp: "#22e6e6", imap: "#ffd166", mail: "#ffb800", bots: "#b07cff" };
+const threats = { data: null, intercepted: 0, feed: [] };
+const threatsReady = fetch(CONFIG.threatsUrl).then((r) => r.json()).then((j) => {
+  if (!j || !j.countries) return null;
+  threats.data = j; hud.threats.textContent = fmtInt(j.total);
+  log(`THREAT FEED · ${fmtInt(j.total)} ATTACKING IPS · ${j.countries.length} COUNTRIES · 48 H`);
+  if (!$("panel-threats").hidden) renderThreatPanel();
+  return j;
+}).catch(() => { hud.threats.textContent = "ERR"; return null; });
+function renderThreatPanel() {
+  const j = threats.data; if (!j) { $("th-total").textContent = "…"; return; }
+  $("th-total").textContent = fmtInt(j.total); $("th-countries").textContent = j.countries.length; $("th-intercepted").textContent = fmtInt(threats.intercepted);
+  const top = j.countries[0]; $("th-top").textContent = top ? top[0] : "—"; $("th-top-sub").textContent = top ? `${top[1]} · ${fmtInt(top[4])} IPs` : "";
+  $("th-types").innerHTML = Object.entries(j.types).sort((a, b) => b[1] - a[1]).map(([t, n]) => `<li><i style="background:${THREAT_COLORS[t] || "#ff3b5c"};color:${THREAT_COLORS[t] || "#ff3b5c"}"></i>${esc(j.labels[t] || t)}<span>${fmtInt(n)}</span></li>`).join("");
+  const max = j.countries[0]?.[4] || 1;
+  $("th-countries-list").innerHTML = j.countries.slice(0, 10).map((c) => `<li><b>${c[0]}</b><div class="bar" style="width:${Math.max(4, (c[4] / max) * 100).toFixed(1)}%"></div><span>${fmtInt(c[4])}</span></li>`).join("");
+  renderThreatFeed();
+}
+function renderThreatFeed() {
+  const ul = $("th-feed"); if (!ul || $("panel-threats").hidden) return;
+  ul.innerHTML = threats.feed.slice(0, 11).map((e) => `<li><span>${e.time}</span><b style="color:${THREAT_COLORS[e.type] || "#ff3b5c"}">${esc((threats.data?.labels[e.type] || e.type).toUpperCase())}</b><span>${esc(e.ip)} · ${e.cc}</span></li>`).join("");
+  $("th-intercepted").textContent = fmtInt(threats.intercepted);
 }
 
 /* ---------- data: earthquakes (USGS, past 24 h, M2.5+) ---------- */
@@ -453,6 +480,10 @@ const globe = {};
   const satPoints = scene.primitives.add(new Cesium.BillboardCollection({ scene }));
   const satLabels = scene.primitives.add(new Cesium.LabelCollection({ scene }));
   const quakePoints = scene.primitives.add(new Cesium.PointPrimitiveCollection());
+  const threatPoints = scene.primitives.add(new Cesium.PointPrimitiveCollection());
+  const strikeLines = scene.primitives.add(new Cesium.PolylineCollection());
+  const eyeSat = scene.primitives.add(new Cesium.BillboardCollection({ scene }));
+  const eyeLabel = scene.primitives.add(new Cesium.LabelCollection({ scene }));
   const LOD = [
     { below: 5e4, cond: new Cesium.DistanceDisplayCondition(0, 6e4) },      // street level: contacts within 60 km only
     { below: 5e5, cond: new Cesium.DistanceDisplayCondition(0, 4e5) },      // regional: within 400 km
@@ -473,7 +504,7 @@ const globe = {};
   const SAT_IMG = satSvg("#22e6e6", 18), SAT_IMG_BIG = satSvg("#ffffff", 26);
   const PLANE_IMG = "data:image/svg+xml;utf8," + encodeURIComponent(
     `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><path d="M12 1.5 L13.6 8.5 L22.5 13 L22.5 15.2 L13.8 12.4 L13.3 18 L16.2 20.2 L16.2 22 L12 20.8 L7.8 22 L7.8 20.2 L10.7 18 L10.2 12.4 L1.5 15.2 L1.5 13 L10.4 8.5 Z" fill="#22e6e6" stroke="#04171a" stroke-width="0.8"/></svg>`);
-  const layerState = { planes: true, cams: true, labels: true, sats: true, quakes: true, radar: false, lights: true, cables: false, detect: false, traffic: false };
+  const layerState = { threats: true, planes: true, cams: true, labels: true, sats: true, quakes: true, radar: false, lights: true, cables: false, detect: false, traffic: false };
   async function setLayer(name, on, quiet) {
     layerState[name] = on;
     document.querySelector(`[data-layer="${name}"]`)?.classList.toggle("on", on);
@@ -481,6 +512,7 @@ const globe = {};
     if (name === "cams") camPoints.show = on;
     if (name === "sats") { satPoints.show = on; satLabels.show = on; }
     if (name === "quakes") quakePoints.show = on;
+    if (name === "threats") { threatPoints.show = on; strikeLines.show = on; eyeSat.show = on; eyeLabel.show = on; if (!on) { strikeLines.removeAll(); strikes.length = 0; } }
     if (name === "lights" && lightsLayer) lightsLayer.show = on;
     if (name === "labels" && labelsLayer) labelsLayer.show = on;
     if (name === "detect") { $("detect").hidden = !on; if (!on) { const d = $("detect"); d.getContext("2d").clearRect(0, 0, d.width, d.height); } }
@@ -525,6 +557,54 @@ const globe = {};
     });
   };
   camsReady.then((cams) => { globe.addCams(cams); applyHashTarget(); });
+  /* ---- live cyber threats: EYE-01 interceptor + source hotspots + strikes ---- */
+  const EYE_ALT = 2.6e6, EYE_PERIOD = 600; // fictional interceptor orbit (10 min per lap)
+  // EYE-01 circles above whatever hemisphere you are looking at, so the intercepts stay in view
+  let eyeCentre = { lat: 24, lon: 18 };
+  const eyePos = (t = Date.now() / 1000) => { const a = (t % 90) / 90 * 2 * Math.PI; return { lon: eyeCentre.lon + 16 * Math.cos(a), lat: Math.max(-70, Math.min(70, eyeCentre.lat + 10 * Math.sin(a))), alt: EYE_ALT }; };
+  const SAT_EYE = "data:image/svg+xml;utf8," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="17" fill="none" stroke="#ffb800" stroke-width="1.5" stroke-dasharray="3 3"/><path d="M5 20C10 12 30 12 35 20C30 28 10 28 5 20Z" fill="#0b1a1f" stroke="#22e6e6" stroke-width="2"/><circle cx="20" cy="20" r="6" fill="#22e6e6"/><circle cx="20" cy="20" r="2.5" fill="#04171a"/></svg>`);
+  eyeSat.add({ position: C3.ZERO, image: SAT_EYE, width: 34, height: 34, id: { type: "eyesat" } });
+  eyeLabel.add({ position: C3.ZERO, text: "EYE-01 · INTERCEPTOR", font: "600 11px 'JetBrains Mono', monospace", fillColor: AMBER, outlineColor: Cesium.Color.BLACK, outlineWidth: 3, style: Cesium.LabelStyle.FILL_AND_OUTLINE, pixelOffset: new Cesium.Cartesian2(22, -10), horizontalOrigin: Cesium.HorizontalOrigin.LEFT });
+  const strikes = []; let nextStrike = 0;
+  const tColor = (t) => Cesium.Color.fromCssColorString(THREAT_COLORS[t] || "#ff3b5c");
+  threatsReady.then((j) => {
+    if (!j) return;
+    for (const [cc, name, lat, lon, n] of j.countries) threatPoints.add({ position: C3.fromDegrees(lon, lat, 2e4), color: Cesium.Color.fromCssColorString("#ff3b5c").withAlpha(0.75), pixelSize: 2.5 + Math.log2(n + 1) * 0.9, outlineColor: Cesium.Color.fromCssColorString("#ff3b5c").withAlpha(0.3), outlineWidth: 2.5, id: { type: "threat", cc, name, n } });
+  });
+  function launchStrike(now) {
+    const j = threats.data; if (!j || !j.sample.length) return;
+    const [ip, cc, type] = j.sample[Math.floor(Math.random() * j.sample.length)];
+    const c = j.countries.find((x) => x[0] === cc); if (!c) return;
+    const src = { lat: c[2] + (Math.random() - 0.5) * 3, lon: c[3] + (Math.random() - 0.5) * 4 };
+    const dst = eyePos(now / 1000 + 1.6);
+    const a = C3.fromDegrees(src.lon, src.lat, 0), b = C3.fromDegrees(dst.lon, dst.lat, dst.alt);
+    const mid = C3.midpoint(a, b, new C3()); const lift = C3.multiplyByScalar(C3.normalize(mid, new C3()), C3.distance(a, b) * 0.28, new C3());
+    const ctrl = C3.add(mid, lift, new C3()); const pts = [];
+    for (let i = 0; i <= 48; i++) { const t = i / 48, u = 1 - t; pts.push(new C3(u * u * a.x + 2 * u * t * ctrl.x + t * t * b.x, u * u * a.y + 2 * u * t * ctrl.y + t * t * b.y, u * u * a.z + 2 * u * t * ctrl.z + t * t * b.z)); }
+    const line = strikeLines.add({ positions: pts.slice(0, 2), width: 4, material: Cesium.Material.fromType("PolylineGlow", { color: tColor(type), glowPower: 0.32, taperPower: 0.5 }) });
+    strikes.push({ line, pts, t0: now, dur: 1500 + Math.random() * 600 });
+    threats.intercepted++; const d = new Date(); threats.feed.unshift({ time: d.toISOString().slice(11, 19), type, ip, cc });
+    if (threats.feed.length > 30) threats.feed.length = 30;
+  }
+  setInterval(renderThreatFeed, 700);
+  scene.preRender.addEventListener(() => {
+    if (!layerState.threats) return;
+    const now = Date.now();
+    if (now - (eyeCentre.t || 0) > 1500) { const c = globe.viewCentre ? globe.viewCentre() : null; if (c && Number.isFinite(c.lat)) eyeCentre = { lat: eyeCentre.lat + (c.lat - eyeCentre.lat) * 0.5, lon: eyeCentre.lon + (((c.lon - eyeCentre.lon + 540) % 360) - 180) * 0.5, t: now }; }
+    const p = eyePos(now / 1000); const pos = C3.fromDegrees(p.lon, p.lat, p.alt);
+    eyeSat.get(0).position = pos; eyeLabel.get(0).position = pos;
+    const pulse = 0.25 + 0.2 * Math.sin(now / 260);
+    for (let i = 0; i < threatPoints.length; i++) { const pt = threatPoints.get(i); pt.outlineColor = pt.outlineColor.withAlpha(pulse); }
+    const orbitView = camera.positionCartographic.height > 1.2e6 && scene.mode === Cesium.SceneMode.SCENE3D;
+    if (orbitView && now > nextStrike && strikes.length < 42) { launchStrike(now); nextStrike = now + 55 + Math.random() * 110; }
+    for (let i = strikes.length - 1; i >= 0; i--) {
+      const st = strikes[i]; const k = (now - st.t0) / st.dur;
+      if (k >= 1.25) { strikeLines.remove(st.line); strikes.splice(i, 1); continue; }
+      const head = Math.min(st.pts.length, Math.max(2, Math.round(k * st.pts.length))), tail = Math.max(0, Math.round((k - 0.35) * st.pts.length));
+      st.line.positions = st.pts.slice(Math.min(tail, head - 2), head);
+    }
+  });
+
   quakesReady.then((qs) => {
     for (const q of qs) quakePoints.add({
       position: C3.fromDegrees(q.lon, q.lat, 1000), color: RED.withAlpha(0.85), pixelSize: 4 + Math.max(0, q.mag - 2) * 3,
@@ -779,6 +859,8 @@ const globe = {};
       if (svPick) { const p = camera.pickEllipsoid(m.position); if (p) { const c = Cesium.Cartographic.fromCartesian(p); setSvPick(false); globe.openStreetView(CM.toDegrees(c.latitude), CM.toDegrees(c.longitude), CM.toDegrees(camera.heading)); } return; }
       if (route.drawing) addWaypoint(m.position); return;
     }
+    if (id.type === "threat") { log(`THREAT SOURCE · ${id.name.toUpperCase()} · ${fmtInt(id.n)} ATTACKING IPS IN 48 H`); openPanel("threats"); return; }
+    if (id.type === "eyesat") { openPanel("threats"); return; }
     if (id.type === "egg") { huntProbe("ground", { token: id.token, lat: id.lat, lon: id.lon }); if (!hunt.wallet) { openPanel("hunt"); log("AN EYE · CONNECT A WALLET TO LOG IT"); } return; }
     if (id.type === "cam") globe.selectCam(id.cam); else if (id.type === "plane") globe.selectPlane(id.p);
     else if (id.type === "sat") globe.selectSat(id.s); else if (id.type === "quake") globe.selectQuake(id.q);
